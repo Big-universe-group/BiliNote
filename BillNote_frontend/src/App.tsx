@@ -1,5 +1,6 @@
 import './App.css'
 import { HomePage } from './pages/HomePage/Home.tsx'
+import SpacePage from './pages/SpacePage/index.tsx'
 import { useTaskPolling } from '@/hooks/useTaskPolling.ts'
 import SettingPage from './pages/SettingPage/index.tsx'
 import { BrowserRouter, Navigate, Routes } from 'react-router-dom'
@@ -44,6 +45,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Index />}>
             <Route index element={<HomePage />} />
+            <Route path="space" element={<SpacePage />} />
             <Route path="settings" element={<SettingPage />}>
               <Route index element={<Navigate to="model" replace />} />
               <Route path="model" element={<Model />}>

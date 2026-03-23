@@ -9,6 +9,7 @@ import {
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import NavTabs from '@/components/NavTabs.tsx'
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from '@/components/ui/resizable'
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
 import logo from '@/assets/icon.svg'
@@ -26,13 +27,14 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
         {/* 左边表单 */}
         <ResizablePanel defaultSize={23} minSize={10} maxSize={35}>
           <aside className="flex h-full flex-col overflow-hidden border-r border-neutral-200 bg-white">
-            <header className="flex h-16 items-center justify-between px-6">
+            <header className="flex h-16 items-center justify-between px-4">
               <div className="flex items-center gap-2">
                 <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl">
                   <img src={logo} alt="logo" className="h-full w-full object-contain" />
                 </div>
-                <div className="text-2xl font-bold text-gray-800">BiliNote</div>
+                <div className="text-xl font-bold text-gray-800">BiliNote</div>
               </div>
+              <NavTabs />
               <div>
                 <TooltipProvider>
                   <Tooltip>
@@ -60,7 +62,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
         <ResizablePanel defaultSize={16} minSize={10} maxSize={30}>
           <aside className="flex h-full flex-col overflow-hidden border-r border-neutral-200 bg-white">
             <ScrollArea className="flex-1 overflow-auto">
-            <div className="">{History}</div>
+            <div className="p-3">{History}</div>
             </ScrollArea>
           </aside>
         </ResizablePanel>

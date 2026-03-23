@@ -14,6 +14,7 @@ import { z } from 'zod'
 
 import { Info, Loader2, Plus } from 'lucide-react'
 import { message, Alert } from 'antd'
+import toast from 'react-hot-toast'
 import { generateNote } from '@/services/note.ts'
 import { uploadFile } from '@/services/upload.ts'
 import { useTaskStore } from '@/store/taskStore'
@@ -132,7 +133,7 @@ const NoteForm = () => {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   /* ---- 全局状态 ---- */
-  const { addPendingTask, currentTaskId, setCurrentTask, getCurrentTask, retryTask } =
+  const { addPendingTask, currentTaskId, setCurrentTask, getCurrentTask, retryTask, hasTaskForUrl } =
     useTaskStore()
   const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
 
@@ -195,7 +196,7 @@ const NoteForm = () => {
   ])
 
   /* ---- 帮助函数 ---- */
-  const isGenerating = () => !['SUCCESS', 'FAILED', undefined].includes(getCurrentTask()?.status)
+  const isGenerating = () => !!currentTaskId && !['SUCCESS', 'FAILED', undefined].includes(getCurrentTask()?.status)
   const generating = isGenerating()
   const handleFileUpload = async (file: File, cb: (url: string) => void) => {
     const formData = new FormData()
@@ -228,9 +229,15 @@ const NoteForm = () => {
       return
     }
 
-    // message.success('已提交任务')
+    // 去重检查（仅对网络链接，本地文件跳过）
+    if (values.video_url && values.video_url.startsWith('http') && hasTaskForUrl(values.video_url)) {
+      toast.error('该视频已存在于生成历史中，请勿重复提交')
+      return
+    }
+
     const  data  = await generateNote(payload)
     addPendingTask(data.task_id, values.platform, payload)
+    form.resetField('video_url')
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
     console.warn('表单校验失败：', errors)

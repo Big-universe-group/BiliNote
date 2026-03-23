@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel, validator, field_validator
 from dataclasses import asdict
 
@@ -15,7 +15,7 @@ from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
 from app.services.note import NoteGenerator, logger
-from app.services.task_serial_executor import task_serial_executor
+from app.services.task_queue import task_queue
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
@@ -117,7 +117,7 @@ def run_note_task(
         )
 
     logger.info(f"任务进入串行队列，等待执行 (task_id={task_id})")
-    note = task_serial_executor.run(_execute_note_task)
+    note = _execute_note_task()
     logger.info(f"Note generated: {task_id}")
     if not note or not note.markdown:
         logger.warning(f"任务 {task_id} 执行失败，跳过保存")
@@ -148,7 +148,7 @@ async def upload(file: UploadFile = File(...)):
 
 
 @router.post("/generate_note")
-def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
+def generate_note(data: VideoRequest):
     try:
         video_id = extract_video_id(data.video_url, data.platform)
         # if not video_id:
@@ -170,7 +170,7 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
         # 统一先写入 PENDING，表示已进入队列等待串行执行
         NoteGenerator()._update_status(task_id, TaskStatus.PENDING)
 
-        background_tasks.add_task(
+        task_queue.submit(
             run_note_task,
             task_id,
             data.video_url,

@@ -65,6 +65,8 @@ interface TaskStore {
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
   retryTask: (id: string) => void
+  /** 检查某个视频 URL 是否已存在于历史任务中（忽略 FAILED 状态） */
+  hasTaskForUrl: (url: string) => boolean
 }
 
 export const useTaskStore = create<TaskStore>()(
@@ -102,7 +104,6 @@ export const useTaskStore = create<TaskStore>()(
             },
             ...state.tasks,
           ],
-          currentTaskId: taskId, // 默认设置为当前任务
         })),
 
       updateTaskContent: (id, data) =>
@@ -208,6 +209,13 @@ export const useTaskStore = create<TaskStore>()(
       clearTasks: () => set({ tasks: [], currentTaskId: null }),
 
       setCurrentTask: taskId => set({ currentTaskId: taskId }),
+
+      hasTaskForUrl: (url: string) => {
+        const normalized = url.trim()
+        return get().tasks.some(
+          t => t.status !== 'FAILED' && t.formData?.video_url?.trim() === normalized
+        )
+      },
     }),
     {
       name: 'task-storage',
