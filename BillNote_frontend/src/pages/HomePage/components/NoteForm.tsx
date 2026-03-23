@@ -13,7 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 
 import { Info, Loader2, Plus } from 'lucide-react'
-import { message, Alert } from 'antd'
+import { Alert, AlertDescription } from '@/components/ui/alert.tsx'
 import toast from 'react-hot-toast'
 import { generateNote } from '@/services/note.ts'
 import { uploadFile } from '@/services/upload.ts'
@@ -205,13 +205,12 @@ const NoteForm = () => {
     setUploadSuccess(false)
 
     try {
-  
+
       const  data  = await uploadFile(formData)
         cb(data.url)
         setUploadSuccess(true)
     } catch (err) {
       console.error('上传失败:', err)
-      // message.error('上传失败，请重试')
     } finally {
       setIsUploading(false)
     }
@@ -241,11 +240,8 @@ const NoteForm = () => {
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
     console.warn('表单校验失败：', errors)
-    // message.error('请完善所有必填项后再提交')
   }
   const handleCreateNew = () => {
-    // 🔁 这里清空当前任务状态
-    // 比如调用 resetCurrentTask() 或者 navigate 到一个新页面
     setCurrentTask(null)
   }
   const FormButton = () => {
@@ -384,7 +380,6 @@ const NoteForm = () => {
           <div className="grid grid-cols-2 gap-2">
             {/* 模型选择 */}
             {
-
              modelList.length>0?(     <FormField
                className="w-full"
                control={form.control}
@@ -520,17 +515,11 @@ const NoteForm = () => {
                 )}
               />
             </div>
-            <Alert
-              closable
-              type="error"
-              message={
-                <div>
-                  <strong>提示：</strong>
-                  <p>视频理解功能必须使用多模态模型。</p>
-                </div>
-              }
-              className="text-sm"
-            />
+            <Alert variant="warning" className="text-sm">
+              <AlertDescription>
+                <strong>提示：</strong>视频理解功能必须使用多模态模型。
+              </AlertDescription>
+            </Alert>
           </div>
 
           {/* 笔记格式 */}

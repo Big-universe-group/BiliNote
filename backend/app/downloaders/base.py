@@ -24,13 +24,14 @@ class Downloader(ABC):
         output_dir: str = None,
         quality: DownloadQuality = "fast",
         need_video: Optional[bool] = False,
+        skip_download: bool = False,
     ) -> AudioDownloadResult:
         """
-
         :param need_video:
         :param video_url: 资源链接
         :param output_dir: 输出路径 默认根目录data
         :param quality: 音频质量 fast | medium | slow
+        :param skip_download: 仅提取元信息，不下载文件
         :return:返回一个 AudioDownloadResult 类
         """
         pass

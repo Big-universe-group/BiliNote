@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip.tsx'
 import LazyImage from '@/components/LazyImage.tsx'
-import { FC, useState, useEffect } from 'react'
+import { FC, useState, useEffect, useMemo } from 'react'
 import { Markdown, Task } from '@/store/taskStore'
 import toast from 'react-hot-toast'
 
@@ -45,7 +45,10 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const fuse = new Fuse(tasks, { keys: ['audioMeta.title'], threshold: 0.4 })
+  const fuse = useMemo(() => new Fuse(tasks, {
+    keys: ['audioMeta.title'],
+    threshold: 0.4,
+  }), [tasks])
 
   useEffect(() => {
     const timer = setTimeout(() => {

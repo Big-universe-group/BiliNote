@@ -116,14 +116,21 @@ def run_note_task(
             grid_size=grid_size,
         )
 
-    logger.info(f"任务进入串行队列，等待执行 (task_id={task_id})")
-    note = _execute_note_task()
+    logger.info(f"任务进入执行队列 (task_id={task_id})")
+    from app.services.task_serial_executor import task_serial_executor
+    note = task_serial_executor.run(_execute_note_task)
     logger.info(f"Note generated: {task_id}")
     if not note or not note.markdown:
         logger.warning(f"任务 {task_id} 执行失败，跳过保存")
         return
     save_note_to_file(task_id, note)
 
+    # 自动建立向量索引（用于 AI 问答），失败不影响笔记生成
+    try:
+        from app.services.vector_store import VectorStoreManager
+        VectorStoreManager().index_task(task_id)
+    except Exception as e:
+        logger.warning(f"向量索引失败（不影响笔记）: {e}")
 
 @router.post("/delete_task")
 def delete_task(data: RecordRequest):
