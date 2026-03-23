@@ -10,6 +10,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class TranscriberType(str, Enum):
     FAST_WHISPER = "fast-whisper"
     MLX_WHISPER = "mlx-whisper"
@@ -17,17 +18,22 @@ class TranscriberType(str, Enum):
     KUAISHOU = "kuaishou"
     GROQ = "groq"
 
+
 # 仅在 Apple 平台启用 MLX Whisper
 MLX_WHISPER_AVAILABLE = False
-if platform.system() == "Darwin" and os.environ.get("TRANSCRIBER_TYPE") == "mlx-whisper":
+if (
+    platform.system() == "Darwin"
+    and os.environ.get("TRANSCRIBER_TYPE") == "mlx-whisper"
+):
     try:
         from app.transcriber.mlx_whisper_transcriber import MLXWhisperTranscriber
+
         MLX_WHISPER_AVAILABLE = True
         logger.info("MLX Whisper 可用，已导入")
     except ImportError:
         logger.warning("MLX Whisper 导入失败，可能未安装或平台不支持")
 
-logger.info('初始化转录服务提供器')
+logger.info("初始化转录服务提供器")
 
 # 转录器单例缓存
 _transcribers = {
@@ -38,36 +44,50 @@ _transcribers = {
     TranscriberType.GROQ: None,
 }
 
+
 # 公共实例初始化函数
 def _init_transcriber(key: TranscriberType, cls, *args, **kwargs):
     if _transcribers[key] is None:
-        logger.info(f'创建 {cls.__name__} 实例: {key}')
+        logger.info(f"创建 {cls.__name__} 实例: {key}")
         try:
             _transcribers[key] = cls(*args, **kwargs)
-            logger.info(f'{cls.__name__} 创建成功')
+            logger.info(f"{cls.__name__} 创建成功")
         except Exception as e:
             logger.error(f"{cls.__name__} 创建失败: {e}")
             raise
     return _transcribers[key]
 
+
 # 各类型获取方法
 def get_groq_transcriber():
     return _init_transcriber(TranscriberType.GROQ, GroqTranscriber)
 
+
 def get_whisper_transcriber(model_size="base", device="cuda"):
-    return _init_transcriber(TranscriberType.FAST_WHISPER, WhisperTranscriber, model_size=model_size, device=device)
+    return _init_transcriber(
+        TranscriberType.FAST_WHISPER,
+        WhisperTranscriber,
+        model_size=model_size,
+        device=device,
+    )
+
 
 def get_bcut_transcriber():
     return _init_transcriber(TranscriberType.BCUT, BcutTranscriber)
 
+
 def get_kuaishou_transcriber():
     return _init_transcriber(TranscriberType.KUAISHOU, KuaishouTranscriber)
+
 
 def get_mlx_whisper_transcriber(model_size="base"):
     if not MLX_WHISPER_AVAILABLE:
         logger.warning("MLX Whisper 不可用，请确保在 Apple 平台且已安装 mlx_whisper")
         raise ImportError("MLX Whisper 不可用")
-    return _init_transcriber(TranscriberType.MLX_WHISPER, MLXWhisperTranscriber, model_size=model_size)
+    return _init_transcriber(
+        TranscriberType.MLX_WHISPER, MLXWhisperTranscriber, model_size=model_size
+    )
+
 
 # 通用入口
 def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="cuda"):
@@ -82,7 +102,7 @@ def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="
     返回:
         对应类型的转录器实例
     """
-    logger.info(f'请求转录器类型: {transcriber_type}')
+    logger.info(f"请求转录器类型: {transcriber_type}")
 
     try:
         transcriber_enum = TranscriberType(transcriber_type)

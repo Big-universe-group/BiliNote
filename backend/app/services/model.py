@@ -1,6 +1,9 @@
-
-
-from app.db.model_dao import insert_model, get_all_models, get_model_by_provider_and_name, delete_model
+from app.db.model_dao import (
+    insert_model,
+    get_all_models,
+    get_model_by_provider_and_name,
+    delete_model,
+)
 from app.db.provider_dao import get_enabled_providers
 from app.enmus.exception import ProviderErrorEnum
 from app.exceptions.provider import ProviderError
@@ -10,16 +13,17 @@ from app.models.model_config import ModelConfig
 from app.services.provider import ProviderService
 from app.utils.logger import get_logger
 
-logger=get_logger(__name__)
-class ModelService:
+logger = get_logger(__name__)
 
+
+class ModelService:
     @staticmethod
     def _build_model_config(provider: dict) -> ModelConfig:
         return ModelConfig(
             api_key=provider["api_key"],
             base_url=provider["base_url"],
             provider=provider["name"],
-            model_name='',
+            model_name="",
             name=provider["name"],
         )
 
@@ -50,6 +54,7 @@ class ModelService:
         except Exception as e:
             print(f"获取所有模型失败: {e}")
             return []
+
     @staticmethod
     def get_all_models_safe(verbose: bool = False):
         try:
@@ -60,6 +65,7 @@ class ModelService:
         except Exception as e:
             print(f"获取所有模型失败: {e}")
             return []
+
     @staticmethod
     def _format_models(raw_models: list) -> list:
         """
@@ -67,20 +73,26 @@ class ModelService:
         """
         formatted = []
         for model in raw_models:
-            formatted.append({
-                "id": model.get("id"),
-                "provider_id": model.get("provider_id"),
-                "model_name": model.get("model_name"),
-                "created_at": model.get("created_at", None),  # 如果有created_at字段
-            })
+            formatted.append(
+                {
+                    "id": model.get("id"),
+                    "provider_id": model.get("provider_id"),
+                    "model_name": model.get("model_name"),
+                    "created_at": model.get("created_at", None),  # 如果有created_at字段
+                }
+            )
         return formatted
+
     @staticmethod
-    def get_enabled_models_by_provider( provider_id: str|int,):
+    def get_enabled_models_by_provider(
+        provider_id: str | int,
+    ):
         from app.db.model_dao import get_models_by_provider
 
         all_models = get_models_by_provider(provider_id)
         enabled_models = all_models
         return enabled_models
+
     @staticmethod
     def get_all_models_by_id(provider_id: str, verbose: bool = False):
         try:
@@ -89,9 +101,7 @@ class ModelService:
             models = ModelService.get_model_list(provider["id"], verbose=verbose)
             print(type(models))
             serializable_models = [m.dict() for m in models.data]
-            model_list = {
-                "models": serializable_models
-            }
+            model_list = {"models": serializable_models}
 
             logger.info(f"[{provider['name']}] 获取模型成功")
             return model_list
@@ -99,35 +109,43 @@ class ModelService:
             # print(f"[{provider_id}] 获取模型失败: {e}")
             logger.error(f"[{provider_id}] 获取模型失败: {e}")
             return []
+
     @staticmethod
     def connect_test(id: str) -> bool:
 
         provider = ProviderService.get_provider_by_id(id)
 
         if provider:
-            if not provider.get('api_key'):
-                raise ProviderError(code=ProviderErrorEnum.NOT_FOUND.code, message=ProviderErrorEnum.NOT_FOUND.message)
-            result =  OpenAICompatibleProvider.test_connection(
-                api_key=provider.get('api_key'),
-                base_url=provider.get('base_url')
+            if not provider.get("api_key"):
+                raise ProviderError(
+                    code=ProviderErrorEnum.NOT_FOUND.code,
+                    message=ProviderErrorEnum.NOT_FOUND.message,
+                )
+            result = OpenAICompatibleProvider.test_connection(
+                api_key=provider.get("api_key"), base_url=provider.get("base_url")
             )
             if result:
                 return True
             else:
-                raise ProviderError(code=ProviderErrorEnum.WRONG_PARAMETER.code,message=ProviderErrorEnum.WRONG_PARAMETER.message)
+                raise ProviderError(
+                    code=ProviderErrorEnum.WRONG_PARAMETER.code,
+                    message=ProviderErrorEnum.WRONG_PARAMETER.message,
+                )
 
-        raise ProviderError(code=ProviderErrorEnum.NOT_FOUND.code, message=ProviderErrorEnum.NOT_FOUND.message)
-
-
+        raise ProviderError(
+            code=ProviderErrorEnum.NOT_FOUND.code,
+            message=ProviderErrorEnum.NOT_FOUND.message,
+        )
 
     @staticmethod
-    def delete_model_by_id( model_id: int) -> bool:
+    def delete_model_by_id(model_id: int) -> bool:
         try:
             delete_model(model_id)
             return True
         except Exception as e:
             print(f"[{model_id}] <UNK>: {e}")
             return False
+
     @staticmethod
     def add_new_model(provider_id: int, model_name: str) -> bool:
         try:
@@ -151,7 +169,8 @@ class ModelService:
             print(f"添加模型失败: {e}")
             return False
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # 单个 Provider 测试
     print(ModelService.get_model_list(1, verbose=True))
 

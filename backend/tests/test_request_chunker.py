@@ -23,7 +23,9 @@ class DummySeg:
 def build_messages(segments, image_urls, **_):
     content = [{"type": "text", "text": "".join(s.text for s in segments)}]
     for url in image_urls:
-        content.append({"type": "image_url", "image_url": {"url": url, "detail": "auto"}})
+        content.append(
+            {"type": "image_url", "image_url": {"url": url, "detail": "auto"}}
+        )
     return [{"role": "user", "content": content}]
 
 
@@ -44,7 +46,9 @@ class TestRequestChunker(unittest.TestCase):
             DummySeg(1, 2, "bbbb"),
             DummySeg(2, 3, "cccc"),
         ]
-        chunker = RequestChunker(build_messages, max_bytes=8, size_estimator=size_estimator)
+        chunker = RequestChunker(
+            build_messages, max_bytes=8, size_estimator=size_estimator
+        )
         chunks = chunker.chunk(segments, [])
         texts = ["".join(seg.text for seg in c.segments) for c in chunks]
         self.assertEqual("".join(texts), "aaaabbbbcccc")
@@ -53,7 +57,9 @@ class TestRequestChunker(unittest.TestCase):
     def test_chunk_images_distributed_across_batches(self):
         segments = [DummySeg(0, 1, "aa")]
         images = ["i" * 6, "j" * 6, "k" * 6]
-        chunker = RequestChunker(build_messages, max_bytes=10, size_estimator=size_estimator)
+        chunker = RequestChunker(
+            build_messages, max_bytes=10, size_estimator=size_estimator
+        )
         chunks = chunker.chunk(segments, images)
         all_images = [img for c in chunks for img in c.image_urls]
         self.assertEqual(all_images, images)
@@ -65,7 +71,9 @@ class TestRequestChunker(unittest.TestCase):
             DummySeg(2, 3, "cccccc"),
         ]
         images = ["11111", "22222", "33333"]
-        chunker = RequestChunker(build_messages, max_bytes=12, size_estimator=size_estimator)
+        chunker = RequestChunker(
+            build_messages, max_bytes=12, size_estimator=size_estimator
+        )
         chunks = chunker.chunk(segments, images)
 
         self.assertGreaterEqual(len(chunks), 3)
@@ -77,19 +85,25 @@ class TestRequestChunker(unittest.TestCase):
 
     def test_split_oversized_segment(self):
         segments = [DummySeg(0, 1, "x" * 25)]
-        chunker = RequestChunker(build_messages, max_bytes=10, size_estimator=size_estimator)
+        chunker = RequestChunker(
+            build_messages, max_bytes=10, size_estimator=size_estimator
+        )
         chunks = chunker.chunk(segments, [])
         combined = "".join(seg.text for c in chunks for seg in c.segments)
         self.assertEqual(combined, "x" * 25)
 
     def test_group_texts_by_budget(self):
-        chunker = RequestChunker(build_messages, max_bytes=10, size_estimator=size_estimator)
+        chunker = RequestChunker(
+            build_messages, max_bytes=10, size_estimator=size_estimator
+        )
 
         def build_text_messages(texts, *_args, **_kwargs):
             content = [{"type": "text", "text": "".join(texts)}]
             return [{"role": "user", "content": content}]
 
-        groups = chunker.group_texts_by_budget(["aaaaa", "bbbbb", "ccccc"], build_text_messages)
+        groups = chunker.group_texts_by_budget(
+            ["aaaaa", "bbbbb", "ccccc"], build_text_messages
+        )
         self.assertEqual(groups, [["aaaaa", "bbbbb"], ["ccccc"]])
 
 

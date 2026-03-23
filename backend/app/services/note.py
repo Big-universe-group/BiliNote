@@ -71,9 +71,8 @@ class NoteGenerator:
         self.transcriber_type: str = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
         self.transcriber: Transcriber = self._init_transcriber()
         self.video_path: Optional[Path] = None
-        self.video_img_urls=[]
+        self.video_img_urls = []
         logger.info("NoteGenerator 初始化完成")
-
 
     # ---------------- 公有方法 ----------------
 
@@ -186,12 +185,16 @@ class NoteGenerator:
 
             # 5. 保存记录到数据库
             self._update_status(task_id, TaskStatus.SAVING)
-            self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id)
+            self._save_metadata(
+                video_id=audio_meta.video_id, platform=platform, task_id=task_id
+            )
 
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS)
             logger.info(f"笔记生成成功 (task_id={task_id})")
-            return NoteResult(markdown=markdown, transcript=transcript, audio_meta=audio_meta)
+            return NoteResult(
+                markdown=markdown, transcript=transcript, audio_meta=audio_meta
+            )
 
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
@@ -233,7 +236,10 @@ class NoteGenerator:
         provider = ProviderService.get_provider_by_id(provider_id)
         if not provider:
             logger.error(f"[get_gpt] 未找到模型供应商: provider_id={provider_id}")
-            raise ProviderError(code=ProviderErrorEnum.NOT_FOUND,message=ProviderErrorEnum.NOT_FOUND.message)
+            raise ProviderError(
+                code=ProviderErrorEnum.NOT_FOUND,
+                message=ProviderErrorEnum.NOT_FOUND.message,
+            )
         logger.info(f"创建 GPT 实例 {provider_id}")
         config = ModelConfig(
             api_key=provider["api_key"],
@@ -256,18 +262,24 @@ class NoteGenerator:
         instance = None
         if not downloader_cls:
             logger.error(f"不支持的平台：{platform}")
-            raise NoteError(code=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.code,
-                            message=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.message)
+            raise NoteError(
+                code=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.code,
+                message=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.message,
+            )
         try:
             instance = downloader_cls
         except Exception as e:
             logger.error(f"实例化下载器失败：{e}")
 
-
         logger.info(f"使用下载器：{downloader_cls.__class__}")
         return instance
 
-    def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus], message: Optional[str] = None):
+    def _update_status(
+        self,
+        task_id: Optional[str],
+        status: Union[str, TaskStatus],
+        message: Optional[str] = None,
+    ):
         """
         创建或更新 {task_id}.status.json，记录当前任务状态
 
@@ -287,10 +299,10 @@ class NoteGenerator:
 
         try:
             # First create a temporary file
-            temp_file = status_file.with_suffix('.tmp')
+            temp_file = status_file.with_suffix(".tmp")
 
             # Write to temporary file
-            with temp_file.open('w', encoding='utf-8') as f:
+            with temp_file.open("w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
             # Atomic rename operation
@@ -301,14 +313,14 @@ class NoteGenerator:
             logger.error(f"写入状态文件失败 (task_id={task_id})：{e}")
             # Try to write error to file directly as fallback
             try:
-                with status_file.open('w', encoding='utf-8') as f:
+                with status_file.open("w", encoding="utf-8") as f:
                     f.write(f"Error writing status: {str(e)}")
             except:
                 logger.error(f"写入错误  {e}")
 
     def _handle_exception(self, task_id, exc):
         logger.error(f"任务异常 (task_id={task_id})", exc_info=True)
-        error_message = getattr(exc, 'detail', str(exc))
+        error_message = getattr(exc, "detail", str(exc))
         if isinstance(error_message, dict):
             try:
                 error_message = json.dumps(error_message, ensure_ascii=False)
@@ -351,8 +363,6 @@ class NoteGenerator:
         task_id = audio_cache_file.stem.split("_")[0]
         self._update_status(task_id, status_phase)
 
-
-
         # 判断是否需要下载视频
         need_video = screenshot or video_understanding
         if screenshot and not grid_size:
@@ -368,7 +378,7 @@ class NoteGenerator:
 
                 # 若指定了 grid_size，则生成缩略图
                 if grid_size:
-                    self.video_img_urls=VideoReader(
+                    self.video_img_urls = VideoReader(
                         video_path=str(self.video_path),
                         grid_size=tuple(grid_size),
                         frame_interval=frame_interval,
@@ -401,14 +411,16 @@ class NoteGenerator:
                 need_video=need_video,
             )
             # 缓存 audio 元信息到本地 JSON
-            audio_cache_file.write_text(json.dumps(asdict(audio), ensure_ascii=False, indent=2), encoding="utf-8")
+            audio_cache_file.write_text(
+                json.dumps(asdict(audio), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
             logger.info(f"音频下载并缓存成功 ({audio_cache_file})")
             return audio
         except Exception as exc:
             logger.error(f"音频下载失败：{exc}")
             self._handle_exception(task_id, exc)
             raise
-
 
     def _get_transcript(
         self,
@@ -437,8 +449,14 @@ class NoteGenerator:
             logger.info(f"检测到转写缓存 ({transcript_cache_file})，尝试读取")
             try:
                 data = json.loads(transcript_cache_file.read_text(encoding="utf-8"))
-                segments = [TranscriptSegment(**seg) for seg in data.get("segments", [])]
-                return TranscriptResult(language=data.get("language"), full_text=data["full_text"], segments=segments)
+                segments = [
+                    TranscriptSegment(**seg) for seg in data.get("segments", [])
+                ]
+                return TranscriptResult(
+                    language=data.get("language"),
+                    full_text=data["full_text"],
+                    segments=segments,
+                )
             except Exception as e:
                 logger.warning(f"加载转写缓存失败，将重新获取：{e}")
 
@@ -451,7 +469,7 @@ class NoteGenerator:
                 # 缓存结果
                 transcript_cache_file.write_text(
                     json.dumps(asdict(transcript), ensure_ascii=False, indent=2),
-                    encoding="utf-8"
+                    encoding="utf-8",
                 )
                 return transcript
             else:
@@ -489,8 +507,14 @@ class NoteGenerator:
             logger.info(f"检测到转写缓存 ({transcript_cache_file})，尝试读取")
             try:
                 data = json.loads(transcript_cache_file.read_text(encoding="utf-8"))
-                segments = [TranscriptSegment(**seg) for seg in data.get("segments", [])]
-                return TranscriptResult(language=data["language"], full_text=data["full_text"], segments=segments)
+                segments = [
+                    TranscriptSegment(**seg) for seg in data.get("segments", [])
+                ]
+                return TranscriptResult(
+                    language=data["language"],
+                    full_text=data["full_text"],
+                    segments=segments,
+                )
             except Exception as e:
                 logger.warning(f"加载转写缓存失败，将重新转写：{e}")
 
@@ -498,7 +522,10 @@ class NoteGenerator:
         try:
             logger.info("开始转写音频")
             transcript = self.transcriber.transcript(file_path=audio_file)
-            transcript_cache_file.write_text(json.dumps(asdict(transcript), ensure_ascii=False, indent=2), encoding="utf-8")
+            transcript_cache_file.write_text(
+                json.dumps(asdict(transcript), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
             logger.info(f"转写并缓存成功 ({transcript_cache_file})")
             return transcript
         except Exception as exc:
@@ -517,7 +544,7 @@ class NoteGenerator:
         formats: List[str],
         style: Optional[str],
         extras: Optional[str],
-            video_img_urls: List[str],
+        video_img_urls: List[str],
     ) -> str | None:
         """
         调用 GPT 对转写结果进行总结，生成 Markdown 文本并缓存。
@@ -585,7 +612,9 @@ class NoteGenerator:
 
         if "link" in formats:
             try:
-                markdown = replace_content_markers(markdown, video_id=audio_meta.video_id, platform=platform)
+                markdown = replace_content_markers(
+                    markdown, video_id=audio_meta.video_id, platform=platform
+                )
             except Exception as e:
                 logger.warning(f"链接插入失败，跳过该步骤：{e}")
 
@@ -602,7 +631,9 @@ class NoteGenerator:
         matches: List[Tuple[str, int]] = extract_screenshot_timestamps(markdown)
         for idx, (marker, ts) in enumerate(matches):
             try:
-                img_path = generate_screenshot(str(video_path), str(IMAGE_OUTPUT_DIR), ts, idx)
+                img_path = generate_screenshot(
+                    str(video_path), str(IMAGE_OUTPUT_DIR), ts, idx
+                )
                 filename = Path(img_path).name
                 # 构建前端可访问的 URL，例如 /static/screenshots/{filename}
                 img_url = f"{IMAGE_BASE_URL.rstrip('/')}/{filename}"
@@ -634,6 +665,8 @@ class NoteGenerator:
         """
         try:
             insert_video_task(video_id=video_id, platform=platform, task_id=task_id)
-            logger.info(f"已保存任务记录到数据库 (video_id={video_id}, platform={platform}, task_id={task_id})")
+            logger.info(
+                f"已保存任务记录到数据库 (video_id={video_id}, platform={platform}, task_id={task_id})"
+            )
         except Exception as e:
             logger.error(f"保存任务记录失败：{e}")

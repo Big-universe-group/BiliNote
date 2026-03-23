@@ -5,7 +5,11 @@ from app.db.models.models import Model
 def get_model_by_provider_and_name(provider_id: int, model_name: str):
     db = next(get_db())
     try:
-        model = db.query(Model).filter_by(provider_id=provider_id, model_name=model_name).first()
+        model = (
+            db.query(Model)
+            .filter_by(provider_id=provider_id, model_name=model_name)
+            .first()
+        )
         if model:
             return {
                 "id": model.id,

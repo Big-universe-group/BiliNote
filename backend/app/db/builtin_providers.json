@@ -23,7 +23,7 @@
     "api_key": "",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
   },
-    {
+  {
     "id": "Claude",
     "name": "Claude",
     "type": "built-in",
@@ -39,7 +39,7 @@
     "api_key": "",
     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
   },
-    {
+  {
     "id": "groq",
     "name": "Groq",
     "type": "built-in",
@@ -47,7 +47,7 @@
     "api_key": "",
     "base_url": "https://api.groq.com/openai/v1"
   },
-      {
+  {
     "id": "ollama",
     "name": "ollama",
     "type": "built-in",

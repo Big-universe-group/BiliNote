@@ -11,9 +11,10 @@ from datetime import timedelta
 class DeepSeekGPT(GPT):
     def __init__(self):
         from os import getenv
+
         self.api_key = getenv("DEEP_SEEK_API_KEY")
         self.base_url = getenv("DEEP_SEEK_API_BASE_URL")
-        self.model=getenv('DEEP_SEEK_MODEL')
+        self.model = getenv("DEEP_SEEK_MODEL")
         print(self.model)
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.screenshot = False
@@ -23,8 +24,7 @@ class DeepSeekGPT(GPT):
 
     def _build_segment_text(self, segments: List[TranscriptSegment]) -> str:
         return "\n".join(
-            f"{self._format_time(seg.start)} - {seg.text.strip()}"
-            for seg in segments
+            f"{self._format_time(seg.start)} - {seg.text.strip()}" for seg in segments
         )
 
     def ensure_segments_type(self, segments) -> List[TranscriptSegment]:
@@ -33,11 +33,11 @@ class DeepSeekGPT(GPT):
             for seg in segments
         ]
 
-    def create_messages(self, segments: List[TranscriptSegment], title: str,tags:str):
+    def create_messages(self, segments: List[TranscriptSegment], title: str, tags: str):
         content = BASE_PROMPT.format(
             video_title=title,
             segment_text=self._build_segment_text(segments),
-            tags=tags
+            tags=tags,
         )
         if self.screenshot:
             print(":需要截图")
@@ -48,12 +48,8 @@ class DeepSeekGPT(GPT):
     def summarize(self, source: GPTSource) -> str:
         self.screenshot = source.screenshot
         source.segment = self.ensure_segments_type(source.segment)
-        messages = self.create_messages(source.segment, source.title,source.tags)
+        messages = self.create_messages(source.segment, source.title, source.tags)
         response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.7
+            model=self.model, messages=messages, temperature=0.7
         )
         return response.choices[0].message.content.strip()
-
-

@@ -96,7 +96,9 @@ VideoReader = video_reader_module.VideoReader
 
 def _make_fake_ffmpeg_runner(colors_by_second):
     def _runner(cmd, check=True):
-        output_path = next((arg for arg in cmd if isinstance(arg, str) and arg.endswith(".jpg")), None)
+        output_path = next(
+            (arg for arg in cmd if isinstance(arg, str) and arg.endswith(".jpg")), None
+        )
         if output_path is None:
             raise AssertionError("Output path not found in ffmpeg cmd")
         match = re.search(r"frame_(\d{2})_(\d{2})\.jpg$", output_path)
@@ -130,8 +132,18 @@ class TestVideoReaderDeduplicateFrames(unittest.TestCase):
                 3: b"frame-b",
             }
 
-            with patch.object(video_reader_module.ffmpeg, "probe", return_value={"format": {"duration": "4"}}), \
-                    patch.object(video_reader_module.subprocess, "run", side_effect=_make_fake_ffmpeg_runner(fake_colors)):
+            with (
+                patch.object(
+                    video_reader_module.ffmpeg,
+                    "probe",
+                    return_value={"format": {"duration": "4"}},
+                ),
+                patch.object(
+                    video_reader_module.subprocess,
+                    "run",
+                    side_effect=_make_fake_ffmpeg_runner(fake_colors),
+                ),
+            ):
                 paths = reader.extract_frames(max_frames=10)
 
             names = [pathlib.Path(p).name for p in paths]

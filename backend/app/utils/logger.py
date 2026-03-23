@@ -9,7 +9,7 @@ LOG_DIR.mkdir(exist_ok=True)
 # 日志格式
 formatter = logging.Formatter(
     fmt="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 # 控制台输出
@@ -21,6 +21,7 @@ file_handler = logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8")
 file_handler.setFormatter(formatter)
 
 # 获取日志器
+
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)

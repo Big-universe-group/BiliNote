@@ -39,21 +39,21 @@ class ExportUtils:
                 # 根据扩展名推断
                 ext = os.path.splitext(img_path)[1].lower()
                 mime_map = {
-                    '.png': 'image/png',
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.gif': 'image/gif',
-                    '.bmp': 'image/bmp',
-                    '.webp': 'image/webp',
-                    '.svg': 'image/svg+xml'
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".gif": "image/gif",
+                    ".bmp": "image/bmp",
+                    ".webp": "image/webp",
+                    ".svg": "image/svg+xml",
                 }
-                mime_type = mime_map.get(ext, 'image/png')
+                mime_type = mime_map.get(ext, "image/png")
 
             # 读取图片文件并转换为 base64
-            with open(img_path, 'rb') as f:
+            with open(img_path, "rb") as f:
                 img_data = f.read()
 
-            base64_data = base64.b64encode(img_data).decode('utf-8')
+            base64_data = base64.b64encode(img_data).decode("utf-8")
             return f"data:{mime_type};base64,{base64_data}"
 
         except Exception as e:
@@ -100,12 +100,12 @@ class ExportUtils:
                     return f"![{alt_text}](图片不存在: {img_path})"
 
             # 处理相对路径（相对于 STATIC_BASE）
-            elif not img_path.startswith(('http://', 'https://', 'data:')):
+            elif not img_path.startswith(("http://", "https://", "data:")):
                 # 尝试多个可能的路径
                 possible_paths = [
                     os.path.join(STATIC_BASE, img_path),
                     os.path.abspath(img_path),
-                    os.path.join(BASE_DIR, img_path)
+                    os.path.join(BASE_DIR, img_path),
                 ]
 
                 for abs_path in possible_paths:
@@ -121,7 +121,7 @@ class ExportUtils:
                 return f"![{alt_text}](图片未找到: {img_path})"
 
             # HTTP/HTTPS 和 data: 路径保持不变
-            elif img_path.startswith(('http://', 'https://', 'data:')):
+            elif img_path.startswith(("http://", "https://", "data:")):
                 print(f"网络图片或 data URI 保持不变: {img_path[:50]}...")
                 return match.group(0)
 
@@ -130,7 +130,7 @@ class ExportUtils:
 
         # 使用更精确的正则表达式匹配图片语法
         # 匹配 ![alt text](path) 格式
-        pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
+        pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
         result = re.sub(pattern, repl, content)
 
         print("图片路径处理完成")
@@ -199,7 +199,9 @@ class ExportUtils:
                 save_path = self._to_image(content, title)
             else:
                 supported_formats = ["pdf", "html", "word/docx", "image/png"]
-                raise ValueError(f"不支持的导出格式: {output_format}. 支持的格式: {', '.join(supported_formats)}")
+                raise ValueError(
+                    f"不支持的导出格式: {output_format}. 支持的格式: {', '.join(supported_formats)}"
+                )
 
             print(f"导出完成: {save_path}")
             return save_path
@@ -218,8 +220,9 @@ class ExportUtils:
             "word": "Word 文档 (.docx)",
             "docx": "Word 文档 (.docx)",
             "image": "PNG 图片",
-            "png": "PNG 图片"
+            "png": "PNG 图片",
         }
+
     def debug_paths(self):
         """
         调试方法：打印重要路径信息
@@ -232,9 +235,12 @@ class ExportUtils:
         print(f"IMAGE_BASE_URL: {IMAGE_BASE_URL}")
         print("==================")
 
-if __name__ == '__main__':
 
-    ExportUtils().export("pdf",title='测试',content='''# 视频笔记：Facial Recognition Forces My Coworkers to Do Their Dishes
+if __name__ == "__main__":
+    ExportUtils().export(
+        "pdf",
+        title="测试",
+        content="""# 视频笔记：Facial Recognition Forces My Coworkers to Do Their Dishes
 
 ## 简介
 该视频展示了团队如何利用面部识别技术来监控和激励同事清洗餐具。通过结合硬件和软件，团队开发了一个“Dish Watcher”系统，旨在识别并提醒那些未清洁餐具的人。
@@ -281,5 +287,5 @@ if __name__ == '__main__':
 - 应用技术可以有效改善工作环境中的小问题。
 - 积极的激励比惩罚更能驱动行为改变。
 
-通过这次实验，团队不仅解决了餐具堆积的问题，还为未来更复杂的行为管理系统奠定了基础。 ''',)
-
+通过这次实验，团队不仅解决了餐具堆积的问题，还为未来更复杂的行为管理系统奠定了基础。 """,
+    )

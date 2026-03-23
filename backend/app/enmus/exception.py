@@ -13,8 +13,9 @@ class ProviderErrorEnum(enum.Enum):
         self.code = code
         self.message = message
 
+
 class NoteErrorEnum(enum.Enum):
-    PLATFORM_NOT_SUPPORTED = (300101 ,"选择的平台不受支持")
+    PLATFORM_NOT_SUPPORTED = (300101, "选择的平台不受支持")
 
     def __init__(self, code, message):
         self.code = code

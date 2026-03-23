@@ -5,14 +5,19 @@ from dotenv import load_dotenv
 import subprocess
 import os
 import uuid
+
 load_dotenv()
 api_path = os.getenv("API_BASE_URL", "http://localhost")
-BACKEND_PORT= os.getenv("BACKEND_PORT", 8483)
+BACKEND_PORT = os.getenv("BACKEND_PORT", 8483)
 
 BACKEND_BASE_URL = f"{api_path}:{BACKEND_PORT}"
 
 from typing import Optional
-def generate_screenshot(video_path: str, output_dir: str, timestamp: int, index: int) -> str:
+
+
+def generate_screenshot(
+    video_path: str, output_dir: str, timestamp: int, index: int
+) -> str:
     """
     使用 ffmpeg 生成截图，返回生成图片路径
     """
@@ -24,12 +29,16 @@ def generate_screenshot(video_path: str, output_dir: str, timestamp: int, index:
 
     command = [
         "ffmpeg",
-        "-ss", str(timestamp),
-        "-i", str(video_path),
-        "-frames:v", "1",
-        "-q:v", "2",
+        "-ss",
+        str(timestamp),
+        "-i",
+        str(video_path),
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
         str(output_path),
-        "-y"
+        "-y",
     ]
 
     print("Running command:", command)
@@ -41,8 +50,9 @@ def generate_screenshot(video_path: str, output_dir: str, timestamp: int, index:
     return str(output_path)
 
 
-
-def save_cover_to_static(local_cover_path: str, subfolder: Optional[str] = "cover") -> str:
+def save_cover_to_static(
+    local_cover_path: str, subfolder: Optional[str] = "cover"
+) -> str:
     """
     将封面图片保存到 static 目录下，并返回前端可访问的路径
     :param local_cover_path: 本地原封面路径（比如提取出来的jpg）

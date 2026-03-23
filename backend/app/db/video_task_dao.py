@@ -13,7 +13,9 @@ def insert_video_task(video_id: str, platform: str, task_id: str):
         db.add(task)
         db.commit()
         db.refresh(task)
-        logger.info(f"Video task inserted successfully. video_id: {video_id}, platform: {platform}, task_id: {task_id}")
+        logger.info(
+            f"Video task inserted successfully. video_id: {video_id}, platform: {platform}, task_id: {task_id}"
+        )
     except Exception as e:
         logger.error(f"Failed to insert video task: {e}")
     finally:
@@ -34,7 +36,9 @@ def get_task_by_video(video_id: str, platform: str):
             logger.info(f"Task found for video_id: {video_id} and platform: {platform}")
             return task.task_id
         else:
-            logger.info(f"No task found for video_id: {video_id} and platform: {platform}")
+            logger.info(
+                f"No task found for video_id: {video_id} and platform: {platform}"
+            )
             return None
     except Exception as e:
         logger.error(f"Failed to get task by video: {e}")
@@ -47,14 +51,14 @@ def delete_task_by_video(video_id: str, platform: str):
     db = next(get_db())
     try:
         tasks = (
-            db.query(VideoTask)
-            .filter_by(video_id=video_id, platform=platform)
-            .all()
+            db.query(VideoTask).filter_by(video_id=video_id, platform=platform).all()
         )
         for task in tasks:
             db.delete(task)
         db.commit()
-        logger.info(f"Task(s) deleted for video_id: {video_id} and platform: {platform}")
+        logger.info(
+            f"Task(s) deleted for video_id: {video_id} and platform: {platform}"
+        )
     except Exception as e:
         logger.error(f"Failed to delete task by video: {e}")
     finally:

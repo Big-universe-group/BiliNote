@@ -9,7 +9,12 @@ class ChunkPayload:
 
 
 class RequestChunker:
-    def __init__(self, message_builder: Callable, max_bytes: int, size_estimator: Optional[Callable] = None):
+    def __init__(
+        self,
+        message_builder: Callable,
+        max_bytes: int,
+        size_estimator: Optional[Callable] = None,
+    ):
         self.message_builder = message_builder
         self.max_bytes = max_bytes
         self.size_estimator = size_estimator
@@ -18,6 +23,7 @@ class RequestChunker:
         if self.size_estimator:
             return self.size_estimator(messages)
         import json
+
         return len(json.dumps(messages, ensure_ascii=False).encode("utf-8"))
 
     def _messages_size(self, segments, image_urls, **kwargs) -> int:
@@ -102,7 +108,10 @@ class RequestChunker:
                 appended = False
                 for chunk in chunks[-1:]:
                     candidate_images = chunk.image_urls + [image]
-                    if self._messages_size(chunk.segments, candidate_images, **kwargs) <= self.max_bytes:
+                    if (
+                        self._messages_size(chunk.segments, candidate_images, **kwargs)
+                        <= self.max_bytes
+                    ):
                         chunk.image_urls = candidate_images
                         appended = True
                         break
@@ -124,7 +133,10 @@ class RequestChunker:
             for chunk_idx in range(preferred_idx, len(chunks)):
                 chunk = chunks[chunk_idx]
                 candidate_images = chunk.image_urls + [image]
-                if self._messages_size(chunk.segments, candidate_images, **kwargs) <= self.max_bytes:
+                if (
+                    self._messages_size(chunk.segments, candidate_images, **kwargs)
+                    <= self.max_bytes
+                ):
                     chunk.image_urls = candidate_images
                     placed = True
                     break
@@ -138,7 +150,9 @@ class RequestChunker:
 
         return chunks
 
-    def group_texts_by_budget(self, texts: List[str], build_messages: Callable, **kwargs) -> List[List[str]]:
+    def group_texts_by_budget(
+        self, texts: List[str], build_messages: Callable, **kwargs
+    ) -> List[List[str]]:
         groups: List[List[str]] = []
         idx = 0
         while idx < len(texts):

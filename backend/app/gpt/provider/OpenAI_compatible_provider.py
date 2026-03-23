@@ -4,9 +4,11 @@ from openai import OpenAI
 
 from app.utils.logger import get_logger
 
-logging= get_logger(__name__)
+logging = get_logger(__name__)
+
+
 class OpenAICompatibleProvider:
-    def __init__(self, api_key: str, base_url: str, model: Union[str, None]=None):
+    def __init__(self, api_key: str, base_url: str, model: Union[str, None] = None):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 

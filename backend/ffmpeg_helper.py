@@ -3,9 +3,12 @@ import subprocess
 from dotenv import load_dotenv
 
 from app.utils.logger import get_logger
+
 logger = get_logger(__name__)
 
 load_dotenv()
+
+
 def check_ffmpeg_exists() -> bool:
     """
     检查 ffmpeg 是否可用。优先使用 FFMPEG_BIN_PATH 环境变量指定的路径。
@@ -26,7 +29,12 @@ def check_ffmpeg_exists() -> bool:
                 logger.info(f"在系统PATH中找到ffmpeg: {path_dir}")
                 break
     try:
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            ["ffmpeg", "-version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
         logger.info("ffmpeg 已安装")
         return True
     except (FileNotFoundError, OSError, subprocess.CalledProcessError):

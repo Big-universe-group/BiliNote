@@ -10,6 +10,7 @@ from app.services.provider import ProviderService
 
 router = APIRouter()
 
+
 #  新增 type 字段
 class ProviderRequest(BaseModel):
     name: str
@@ -18,8 +19,11 @@ class ProviderRequest(BaseModel):
     logo: Optional[str] = None
     type: str
 
+
 class TestRequest(BaseModel):
     id: str
+
+
 class ProviderUpdateRequest(BaseModel):
     id: str
     name: Optional[str] = None
@@ -27,7 +31,8 @@ class ProviderUpdateRequest(BaseModel):
     base_url: Optional[str] = None
     logo: Optional[str] = None
     type: Optional[str] = None
-    enabled:Optional[int] = None
+    enabled: Optional[int] = None
+
 
 @router.post("/add_provider")
 def add_provider(data: ProviderRequest):
@@ -37,11 +42,12 @@ def add_provider(data: ProviderRequest):
             api_key=data.api_key,
             base_url=data.base_url,
             logo=data.logo,
-            type_=data.type
+            type_=data.type,
         )
-        return R.success(msg='添加模型供应商成功',data=res)
+        return R.success(msg="添加模型供应商成功", data=res)
     except Exception as e:
         return R.error(msg=e)
+
 
 @router.get("/get_all_providers")
 def get_all_providers():
@@ -51,6 +57,7 @@ def get_all_providers():
     except Exception as e:
         return R.error(msg=e)
 
+
 @router.get("/get_provider_by_id/{id}")
 def get_provider_by_id(id: str):
     try:
@@ -58,6 +65,8 @@ def get_provider_by_id(id: str):
         return R.success(data=res)
     except Exception as e:
         return R.error(msg=e)
+
+
 #
 # @router.get("/get_provider_by_name/{name}")
 # def get_provider_by_name(name: str):
@@ -73,20 +82,25 @@ def update_provider(data: ProviderUpdateRequest):
     try:
         if all(
             field is None
-            for field in [data.name, data.api_key, data.base_url, data.logo, data.type,data.enabled]
+            for field in [
+                data.name,
+                data.api_key,
+                data.base_url,
+                data.logo,
+                data.type,
+                data.enabled,
+            ]
         ):
-            return R.error(msg='请至少填写一个参数')
+            return R.error(msg="请至少填写一个参数")
 
-        provider_id =ProviderService.update_provider(
-            id=data.id,
-            data=dict(data)
-        )
-        return R.success(msg='更新模型供应商成功',data={'id': provider_id})
+        provider_id = ProviderService.update_provider(id=data.id, data=dict(data))
+        return R.success(msg="更新模型供应商成功", data={"id": provider_id})
     except Exception as e:
         print(e)
         return R.error(msg=str(e))
 
-@router.post('/connect_test')
+
+@router.post("/connect_test")
 def gpt_connect_test(data: TestRequest):
     ModelService().connect_test(data.id)
-    return R.success(msg='连接成功')
+    return R.success(msg="连接成功")

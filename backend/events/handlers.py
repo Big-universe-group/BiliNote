@@ -1,10 +1,12 @@
 import os
 from app.utils.logger import get_logger
+
 logger = get_logger(__name__)
+
 
 def cleanup_temp_files(data):
     logger.info(f"starting cleanup temp files ：{data['file_path']}")
-    file_path = data['file_path']
+    file_path = data["file_path"]
     if not os.path.exists(file_path):
         logger.warning(f"路径不存在：{file_path}")
         return

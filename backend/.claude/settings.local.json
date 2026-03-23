@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff format:*)",
+      "Bash(python -m unittest tests.test_note_helper -v)",
+      "Bash(python -c \"import app.services.note; print\\(''Import successful''\\)\")",
+      "Bash(python -c \"import torch; print\\(f''Torch is already installed: {torch.__version__}''\\)\")",
+      "Bash(uv pip:*)",
+      "Bash(python main.py)"
+    ]
+  }
+}

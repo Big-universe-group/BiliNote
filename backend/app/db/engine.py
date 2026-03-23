@@ -16,7 +16,7 @@ if DATABASE_URL.startswith("sqlite"):
 engine = create_engine(
     DATABASE_URL,
     echo=os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true",
-    **engine_args
+    **engine_args,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

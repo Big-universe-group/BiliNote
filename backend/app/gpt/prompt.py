@@ -1,4 +1,4 @@
-BASE_PROMPT = '''
+BASE_PROMPT = """
 你是一个专业的笔记助手，擅长将视频转录内容整理成清晰、有条理且信息丰富的笔记。
 
 语言要求：
@@ -45,34 +45,34 @@ BASE_PROMPT = '''
 
 额外重要的任务如下(每一个都必须严格完成):
 
-'''
+"""
 
 
-LINK='''
+LINK = """
 9. **Add time markers**: THIS IS IMPORTANT For every main heading (`##`), append the starting time of that segment using the format ,start with *Content ,eg: `*Content-[mm:ss]`.
 
 
-'''
-AI_SUM='''
+"""
+AI_SUM = """
 
 🧠 Final Touch:
 At the end of the notes, add a professional **AI Summary** in Chinese – a brief conclusion summarizing the whole video.
 
 
 
-'''
+"""
 
-SCREENSHOT='''
+SCREENSHOT = """
 8. **Screenshot placeholders**: If a section involves **visual demonstrations, code walkthroughs, UI interactions**, or any content where visuals aid understanding, insert a screenshot cue at the end of that section:
    - Format: `*Screenshot-[mm:ss]`
    - Only use it when truly helpful.
-'''
+"""
 
-MERGE_PROMPT = '''
+MERGE_PROMPT = """
 你将收到多个来自同一视频的 Markdown 笔记片段，请合并成一份完整笔记：
 - 只做合并与去重，不要发明新内容
 - 保持原有标题层级与 Markdown 结构
 - 保留所有 *Content-[mm:ss] 与 *Screenshot-[mm:ss] 标记
 - 保持中文输出，专有名词保留英文
 - 不要使用代码块包裹输出
-'''
+"""

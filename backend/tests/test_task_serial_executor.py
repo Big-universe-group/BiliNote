@@ -29,7 +29,10 @@ class TestTaskSerialExecutor(unittest.TestCase):
             with state_lock:
                 state["active"] -= 1
 
-        threads = [threading.Thread(target=lambda: executor.run(critical_work)) for _ in range(2)]
+        threads = [
+            threading.Thread(target=lambda: executor.run(critical_work))
+            for _ in range(2)
+        ]
         for t in threads:
             t.start()
         for t in threads:

@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from app.db.init_db import init_db
 from app.db.provider_dao import seed_default_providers
 from app.exceptions.exception_handlers import register_exception_handlers
+
 # from app.db.model_dao import init_model_table
 # from app.db.provider_dao import init_provider_table
 from app.utils.logger import get_logger
@@ -22,8 +23,8 @@ logger = get_logger(__name__)
 load_dotenv()
 
 # 读取 .env 中的路径
-static_path = os.getenv('STATIC', '/static')
-out_dir = os.getenv('OUT_DIR', './static/screenshots')
+static_path = os.getenv("STATIC", "/static")
+out_dir = os.getenv("OUT_DIR", "./static/screenshots")
 
 # 自动创建本地目录（static 和 static/screenshots）
 static_dir = "static"
@@ -36,6 +37,7 @@ if not os.path.exists(uploads_dir):
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     register_handler()
@@ -43,6 +45,7 @@ async def lifespan(app: FastAPI):
     get_transcriber(transcriber_type=os.getenv("TRANSCRIBER_TYPE", "fast-whisper"))
     seed_default_providers()
     yield
+
 
 app = create_app(lifespan=lifespan)
 origins = [
@@ -61,13 +64,6 @@ app.add_middleware(
 register_exception_handlers(app)
 app.mount(static_path, StaticFiles(directory=static_dir), name="static")
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
