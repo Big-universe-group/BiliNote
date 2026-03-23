@@ -5,9 +5,9 @@ export interface SpaceVideo {
   title: string
   cover: string
   url: string
-  duration_str: string   // "12:34"
+  duration_str: string
   view_count: number | null
-  created: number | null // unix timestamp
+  created: number | null
 }
 
 export interface SpaceVideosResult {
@@ -16,9 +16,24 @@ export interface SpaceVideosResult {
   uid: string
 }
 
-export const fetchSpaceVideos = async (
-  url: string,
-  maxVideos = 100,
-): Promise<SpaceVideosResult> => {
-  return request.get('/space_videos', { params: { url, max_videos: maxVideos } })
+export interface SpaceFetchParams {
+  url: string
+  maxVideos?: number
+  keywords?: string      // 分号分隔
+  dateFrom?: string      // YYYY-MM-DD
+  dateTo?: string        // YYYY-MM-DD
+  excludeUrls?: string   // 换行分隔
+}
+
+export const fetchSpaceVideos = async (params: SpaceFetchParams): Promise<SpaceVideosResult> => {
+  return request.get('/space_videos', {
+    params: {
+      url: params.url,
+      max_videos: params.maxVideos ?? 100,
+      keywords: params.keywords ?? '',
+      date_from: params.dateFrom ?? '',
+      date_to: params.dateTo ?? '',
+      exclude_urls: params.excludeUrls ?? '',
+    },
+  })
 }

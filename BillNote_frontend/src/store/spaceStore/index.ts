@@ -4,46 +4,56 @@ import { SpaceVideo } from '@/services/space'
 
 const MAX_HISTORY = 10
 
+export interface SpaceFilterSnapshot {
+  keywords: string
+  dateFrom: string
+  dateTo: string
+  excludeUrls: string
+}
+
 export interface SpaceHistoryRecord {
-  id: string          // uid + fetchedAt
+  id: string
   uid: string
   spaceUrl: string
-  fetchedAt: string   // ISO string
+  fetchedAt: string
   total: number
   videos: SpaceVideo[]
+  filters: SpaceFilterSnapshot
 }
 
 interface SpaceStore {
-  // 上次请求设置
   lastUrl: string
   lastMaxVideos: number
-  setLastSettings: (url: string, maxVideos: number) => void
+  lastFilters: SpaceFilterSnapshot
+  setLastSettings: (url: string, maxVideos: number, filters: SpaceFilterSnapshot) => void
 
-  // 历史记录
   history: SpaceHistoryRecord[]
   addHistory: (record: Omit<SpaceHistoryRecord, 'id'>) => void
   removeHistory: (id: string) => void
   clearHistory: () => void
 }
 
+const emptyFilters: SpaceFilterSnapshot = {
+  keywords: '', dateFrom: '', dateTo: '', excludeUrls: '',
+}
+
 export const useSpaceStore = create<SpaceStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       lastUrl: '',
       lastMaxVideos: 100,
+      lastFilters: emptyFilters,
 
-      setLastSettings: (url, maxVideos) => set({ lastUrl: url, lastMaxVideos: maxVideos }),
+      setLastSettings: (url, maxVideos, filters) =>
+        set({ lastUrl: url, lastMaxVideos: maxVideos, lastFilters: filters }),
 
       history: [],
 
       addHistory: record => {
         const id = `${record.uid}-${Date.now()}`
-        const newRecord: SpaceHistoryRecord = { ...record, id }
-        set(state => {
-          const list = [newRecord, ...state.history]
-          // 超过 10 条删除最旧的
-          return { history: list.slice(0, MAX_HISTORY) }
-        })
+        set(state => ({
+          history: [{ ...record, id }, ...state.history].slice(0, MAX_HISTORY),
+        }))
       },
 
       removeHistory: id =>
@@ -51,6 +61,21 @@ export const useSpaceStore = create<SpaceStore>()(
 
       clearHistory: () => set({ history: [] }),
     }),
-    { name: 'space-storage' },
+    {
+      name: 'space-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          return {
+            ...persistedState,
+            history: (persistedState.history ?? []).map((r: any) => ({
+              ...r,
+              filters: r.filters ?? emptyFilters,
+            })),
+          }
+        }
+        return persistedState
+      },
+    },
   ),
 )

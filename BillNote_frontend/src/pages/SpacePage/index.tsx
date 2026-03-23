@@ -2,133 +2,191 @@ import { FC, useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   SlidersHorizontal, Search, Download, ListChecks, X,
-  Loader2, Play, History, Trash2, ChevronRight, Filter, ChevronDown, ChevronUp,
+  Loader2, Play, History, Trash2, ChevronRight,
+  Filter, ChevronDown, ChevronUp, ChevronLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
-import { ScrollArea } from '@/components/ui/scroll-area.tsx'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog.tsx'
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip.tsx'
 import { cn } from '@/lib/utils.ts'
-import { fetchSpaceVideos, SpaceVideo } from '@/services/space.ts'
+import { fetchSpaceVideos, SpaceVideo, SpaceFetchParams } from '@/services/space.ts'
 import { generateNote } from '@/services/note.ts'
 import { useTaskStore } from '@/store/taskStore'
 import { useModelStore } from '@/store/modelStore'
-import { useSpaceStore, SpaceHistoryRecord } from '@/store/spaceStore'
+import { useSpaceStore, SpaceHistoryRecord, SpaceFilterSnapshot } from '@/store/spaceStore'
+import { noteStyles, noteFormats } from '@/constant/note.ts'
 import toast from 'react-hot-toast'
 import logo from '@/assets/icon.svg'
 import NavTabs from '@/components/NavTabs.tsx'
 
-/** 格式化 Unix 时间戳为 yyyy-MM-dd */
+const PAGE_SIZE = 20
+
 function formatTs(ts: number | null): string {
   if (!ts) return '--'
   return new Date(ts * 1000).toISOString().slice(0, 10)
 }
-
-/** 格式化播放数 */
 function formatViews(n: number | null): string {
   if (!n) return '--'
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
-  return String(n)
+  return n >= 10000 ? `${(n / 10000).toFixed(1)}万` : String(n)
 }
-
-/** 从 URL 或裸字符串中提取 BV 号，用于排除比较 */
-function extractBvid(input: string): string {
-  const m = input.match(/BV[a-zA-Z0-9]+/)
-  return m ? m[0] : input.trim()
+function extractBvid(s: string): string {
+  const m = s.match(/BV[a-zA-Z0-9]+/)
+  return m ? m[0] : s.trim()
 }
 
 const baseURL = (String(import.meta.env.VITE_API_BASE_URL || '/api')).replace(/\/$/, '')
 
+// ── 分页控件 ─────────────────────────────────────────────────────────────────
+interface PaginationProps {
+  page: number
+  total: number
+  pageSize: number
+  onChange: (p: number) => void
+}
+const Pagination: FC<PaginationProps> = ({ page, total, pageSize, onChange }) => {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+
+  // 生成页码窗口：始终显示首/末页，当前页 ±2
+  const pages: (number | '...')[] = []
+  const add = (n: number) => { if (!pages.includes(n)) pages.push(n) }
+  add(1)
+  for (let i = Math.max(2, page - 2); i <= Math.min(totalPages - 1, page + 2); i++) add(i)
+  add(totalPages)
+  // 插入省略号
+  const withEllipsis: (number | '...')[] = []
+  pages.forEach((p, i) => {
+    if (i > 0 && typeof p === 'number' && typeof pages[i - 1] === 'number') {
+      if ((p as number) - (pages[i - 1] as number) > 1) withEllipsis.push('...')
+    }
+    withEllipsis.push(p)
+  })
+
+  return (
+    <div className="flex items-center justify-between border-t border-neutral-200 bg-white px-4 py-2">
+      <span className="text-xs text-neutral-400">
+        第 {page} / {totalPages} 页 · 共 {total} 条
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          disabled={page === 1}
+          onClick={() => onChange(page - 1)}
+          className="flex h-7 w-7 items-center justify-center rounded border border-neutral-200 text-neutral-500 disabled:opacity-30 hover:border-primary hover:text-primary"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        {withEllipsis.map((p, i) =>
+          p === '...' ? (
+            <span key={`e${i}`} className="px-1 text-xs text-neutral-400">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p as number)}
+              className={cn(
+                'flex h-7 min-w-[28px] items-center justify-center rounded border px-1.5 text-xs',
+                page === p
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-neutral-200 text-neutral-600 hover:border-primary hover:text-primary',
+              )}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button
+          disabled={page === totalPages}
+          onClick={() => onChange(page + 1)}
+          className="flex h-7 w-7 items-center justify-center rounded border border-neutral-200 text-neutral-500 disabled:opacity-30 hover:border-primary hover:text-primary"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── 主页面 ────────────────────────────────────────────────────────────────────
 const SpacePage: FC = () => {
   const navigate = useNavigate()
   const { addPendingTask, hasTaskForUrl, tasks } = useTaskStore()
   const { modelList, loadEnabledModels } = useModelStore()
-  const {
-    lastUrl, lastMaxVideos, setLastSettings,
-    history, addHistory, removeHistory,
-  } = useSpaceStore()
+  const { lastUrl, lastMaxVideos, lastFilters, setLastSettings, history, addHistory, removeHistory } = useSpaceStore()
 
-  // ── 拉取设置 ──────────────────────────────────────────────────────────────
+  // 拉取设置
   const [spaceUrl, setSpaceUrl] = useState(lastUrl)
   const [maxVideos, setMaxVideos] = useState(lastMaxVideos)
   const [loading, setLoading] = useState(false)
   const [videos, setVideos] = useState<SpaceVideo[]>([])
-  const [total, setTotal] = useState(0)
   const [uid, setUid] = useState('')
 
-  // ── 过滤条件 ──────────────────────────────────────────────────────────────
+  // 过滤条件（提交时发给后端）
   const [showFilter, setShowFilter] = useState(false)
-  const [filterKeywords, setFilterKeywords] = useState('')   // 分号分隔
-  const [filterDateFrom, setFilterDateFrom] = useState('')   // yyyy-MM-dd
-  const [filterDateTo, setFilterDateTo] = useState('')       // yyyy-MM-dd
-  const [filterExcludeUrls, setFilterExcludeUrls] = useState('') // 多行链接
+  const [filterKeywords, setFilterKeywords] = useState(lastFilters.keywords)
+  const [filterDateFrom, setFilterDateFrom] = useState(lastFilters.dateFrom)
+  const [filterDateTo, setFilterDateTo] = useState(lastFilters.dateTo)
+  const [filterExcludeUrls, setFilterExcludeUrls] = useState(lastFilters.excludeUrls)
 
-  // ── 列表交互 ──────────────────────────────────────────────────────────────
-  const [search, setSearch] = useState('')
+  // 列表交互
+  const [search, setSearch] = useState('')     // 前端实时搜索（标题二次过滤）
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(1)
   const [showHistory, setShowHistory] = useState(false)
+
+  // 批量生成配置弹窗
+  const [showBatchConfig, setShowBatchConfig] = useState(false)
+  const [batchModel, setBatchModel] = useState('')
+  const [batchStyle, setBatchStyle] = useState('minimal')
+  const [batchQuality, setBatchQuality] = useState('medium')
+  const [batchFormat, setBatchFormat] = useState<string[]>([])
+  const [batchVideoUnderstanding, setBatchVideoUnderstanding] = useState(false)
+  const [batchVideoInterval, setBatchVideoInterval] = useState(6)
+  const [batchGridSize, setBatchGridSize] = useState<[number, number]>([2, 2])
 
   useEffect(() => { loadEnabledModels() }, [])
 
-  // ── 过滤计算（useMemo 避免每次渲染重复运算）───────────────────────────────
-  const filteredVideos = useMemo(() => {
-    let result = videos
+  const hasActiveFilter = !!(filterKeywords.trim() || filterDateFrom || filterDateTo || filterExcludeUrls.trim())
 
-    // 1. 关键词过滤（分号分隔，OR 逻辑，不区分大小写）
-    const keywords = filterKeywords
-      .split(';')
-      .map(k => k.trim())
-      .filter(Boolean)
-    if (keywords.length > 0) {
-      result = result.filter(v =>
-        keywords.some(k => v.title.toLowerCase().includes(k.toLowerCase()))
-      )
-    }
+  // 前端仅做实时 search 过滤（过滤条件已在后端处理）
+  const displayVideos = useMemo(() => {
+    if (!search.trim()) return videos
+    return videos.filter(v => v.title.toLowerCase().includes(search.toLowerCase()))
+  }, [videos, search])
 
-    // 2. 日期范围过滤（基于 created 时间戳）
-    if (filterDateFrom) {
-      const fromTs = new Date(filterDateFrom).getTime() / 1000
-      result = result.filter(v => v.created != null && v.created >= fromTs)
-    }
-    if (filterDateTo) {
-      // 选定日期当天的最后一刻 23:59:59
-      const toTs = (new Date(filterDateTo).getTime() + 86399000) / 1000
-      result = result.filter(v => v.created != null && v.created <= toTs)
-    }
-
-    // 3. 排除链接（每行一个 URL 或 BV 号）
-    const excludeBvids = new Set(
-      filterExcludeUrls
-        .split('\n')
-        .map(line => extractBvid(line.trim()))
-        .filter(Boolean)
-    )
-    if (excludeBvids.size > 0) {
-      result = result.filter(v => !excludeBvids.has(v.bvid))
-    }
-
-    // 4. 实时搜索（已有逻辑）
-    if (search.trim()) {
-      result = result.filter(v =>
-        v.title.toLowerCase().includes(search.toLowerCase())
-      )
-    }
-
-    return result
-  }, [videos, filterKeywords, filterDateFrom, filterDateTo, filterExcludeUrls, search])
-
-  // 过滤条件是否有生效
-  const hasActiveFilter = !!(
-    filterKeywords.trim() || filterDateFrom || filterDateTo || filterExcludeUrls.trim()
+  // 分页切片
+  const pagedVideos = useMemo(
+    () => displayVideos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [displayVideos, page],
   )
 
-  const allSelected =
-    filteredVideos.length > 0 && filteredVideos.every(v => selectedIds.has(v.bvid))
+  // search 或结果变化时重置到第 1 页
+  useEffect(() => { setPage(1) }, [displayVideos.length])
+
+  const allOnPageSelected = pagedVideos.length > 0 && pagedVideos.every(v => selectedIds.has(v.bvid))
+  const allSelected = displayVideos.length > 0 && displayVideos.every(v => selectedIds.has(v.bvid))
+
+  const toggleSelectPage = () => {
+    if (allOnPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        pagedVideos.forEach(v => next.delete(v.bvid))
+        return next
+      })
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        pagedVideos.forEach(v => next.add(v.bvid))
+        return next
+      })
+    }
+  }
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(filteredVideos.map(v => v.bvid)))
+    setSelectedIds(allSelected ? new Set() : new Set(displayVideos.map(v => v.bvid)))
   }
 
   const toggleSelect = (bvid: string) => {
@@ -139,23 +197,34 @@ const SpacePage: FC = () => {
     })
   }
 
-  const loadVideos = (result: { videos: SpaceVideo[]; total: number; uid: string }) => {
-    setVideos(result.videos)
-    setTotal(result.total)
-    setUid(result.uid)
-    setSelectedIds(new Set())
-    setSearch('')
-  }
+  const currentFilters = (): SpaceFilterSnapshot => ({
+    keywords: filterKeywords,
+    dateFrom: filterDateFrom,
+    dateTo: filterDateTo,
+    excludeUrls: filterExcludeUrls,
+  })
 
   const handleFetch = async () => {
     if (!spaceUrl.trim()) { toast.error('请输入UP主空间链接'); return }
-    setLastSettings(spaceUrl.trim(), maxVideos)
+    const filters = currentFilters()
+    setLastSettings(spaceUrl.trim(), maxVideos, filters)
     setLoading(true)
+    setSelectedIds(new Set())
+    setSearch('')
     try {
-      const result = await fetchSpaceVideos(spaceUrl.trim(), maxVideos)
-      loadVideos(result)
+      const params: SpaceFetchParams = {
+        url: spaceUrl.trim(),
+        maxVideos,
+        keywords: filters.keywords,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        excludeUrls: filters.excludeUrls,
+      }
+      const result = await fetchSpaceVideos(params)
+      setVideos(result.videos)
+      setUid(result.uid)
       if (result.videos.length === 0) {
-        toast('未找到视频，请检查链接或配置Cookie', { icon: '⚠️' })
+        toast('未找到符合条件的视频', { icon: '⚠️' })
       } else {
         toast.success(`获取到 ${result.total} 个视频`)
         addHistory({
@@ -163,7 +232,8 @@ const SpacePage: FC = () => {
           spaceUrl: spaceUrl.trim(),
           fetchedAt: new Date().toISOString(),
           total: result.total,
-          videos: result.videos,
+          videos: result.videos,   // 仅存过滤后的结果
+          filters,
         })
       }
     } catch { /* interceptor already toasted */ } finally {
@@ -174,79 +244,79 @@ const SpacePage: FC = () => {
   const handleLoadHistory = (record: SpaceHistoryRecord) => {
     setSpaceUrl(record.spaceUrl)
     setMaxVideos(record.total > 100 ? record.total : 100)
-    loadVideos({ videos: record.videos, total: record.total, uid: record.uid })
+    setFilterKeywords(record.filters.keywords)
+    setFilterDateFrom(record.filters.dateFrom)
+    setFilterDateTo(record.filters.dateTo)
+    setFilterExcludeUrls(record.filters.excludeUrls)
+    setVideos(record.videos)
+    setUid(record.uid)
+    setSelectedIds(new Set())
+    setSearch('')
     setShowHistory(false)
-    toast.success(`已加载历史记录：${record.total} 个视频`)
+    toast.success(`已加载历史：${record.total} 个视频`)
   }
 
   const handleCopyLinks = () => {
-    const selected = filteredVideos.filter(v => selectedIds.has(v.bvid))
+    const selected = displayVideos.filter(v => selectedIds.has(v.bvid))
     if (!selected.length) { toast.error('请先选择视频'); return }
     navigator.clipboard.writeText(selected.map(v => v.url).join('\n'))
     toast.success(`已复制 ${selected.length} 个链接`)
   }
 
-  const handleGenerateNotes = async () => {
-    const selected = filteredVideos.filter(v => selectedIds.has(v.bvid))
+  const handleOpenBatchConfig = () => {
+    const selected = displayVideos.filter(v => selectedIds.has(v.bvid))
     if (!selected.length) { toast.error('请先选择视频'); return }
-    const model = modelList[0]
+    if (!modelList.length) { toast.error('请先在设置中配置 AI 模型'); return }
+    // 初始化默认模型
+    if (!batchModel && modelList.length) setBatchModel(modelList[0].model_name)
+    setShowBatchConfig(true)
+  }
+
+  const handleBatchSubmit = async () => {
+    const selected = displayVideos.filter(v => selectedIds.has(v.bvid))
+    const model = modelList.find(m => m.model_name === batchModel) ?? modelList[0]
     if (!model) { toast.error('请先在设置中配置 AI 模型'); return }
 
     const duplicates: string[] = []
     const toSubmit = selected.filter(video => {
-      if (hasTaskForUrl(video.url)) {
-        duplicates.push(video.title || video.bvid)
-        return false
-      }
+      if (hasTaskForUrl(video.url)) { duplicates.push(video.title || video.bvid); return false }
       return true
     })
+    if (duplicates.length > 0) toast(`已跳过 ${duplicates.length} 个重复视频`, { icon: '⚠️' })
+    if (!toSubmit.length) { toast('所选视频均已生成过', { icon: 'ℹ️' }); return }
 
-    if (duplicates.length > 0) {
-      toast(`已跳过 ${duplicates.length} 个重复视频`, { icon: '⚠️' })
-    }
-    if (toSubmit.length === 0) {
-      toast('所选视频均已存在于生成历史中', { icon: 'ℹ️' })
-      return
-    }
-
+    setShowBatchConfig(false)
     let submitted = 0
     for (const video of toSubmit) {
       try {
         const formData = {
-          video_url: video.url,
-          platform: 'bilibili',
-          quality: 'medium',
-          model_name: model.model_name,
-          provider_id: model.provider_id,
-          format: [],
-          style: 'minimal',
-          grid_size: [2, 2],
+          video_url: video.url, platform: 'bilibili',
+          quality: batchQuality,
+          model_name: model.model_name, provider_id: model.provider_id,
+          format: batchFormat, style: batchStyle,
+          video_understanding: batchVideoUnderstanding,
+          video_interval: batchVideoInterval,
+          grid_size: batchGridSize,
         }
         const data = await generateNote(formData)
         addPendingTask(data.task_id, 'bilibili', formData)
         submitted++
-      } catch { /* individual failures already toasted */ }
+      } catch { /* toasted */ }
     }
-
-    if (submitted > 0) {
-      toast.success(`已提交 ${submitted} 个笔记任务`)
-      navigate('/')
-    }
+    if (submitted > 0) { toast.success(`已提交 ${submitted} 个笔记任务`); navigate('/') }
   }
 
-  // 一键将已生成历史中的链接填入排除框
   const handleFillExcludeFromHistory = () => {
-    const existingUrls = tasks
-      .filter(t => t.status !== 'FAILED' && t.formData?.video_url)
-      .map(t => t.formData.video_url)
-    if (existingUrls.length === 0) { toast('生成历史中暂无记录'); return }
-    setFilterExcludeUrls(existingUrls.join('\n'))
-    toast.success(`已填入 ${existingUrls.length} 条历史链接`)
+    const urls = tasks.filter(t => t.status !== 'FAILED' && t.formData?.video_url).map(t => t.formData.video_url)
+    if (!urls.length) { toast('生成历史中暂无记录'); return }
+    setFilterExcludeUrls(urls.join('\n'))
+    toast.success(`已填入 ${urls.length} 条历史链接`)
   }
 
   return (
+    <>
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* ── Header ── */}
+      {/* Header */}
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl">
@@ -258,9 +328,7 @@ const SpacePage: FC = () => {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link to="/settings">
-                <SlidersHorizontal className="text-muted-foreground hover:text-primary cursor-pointer" />
-              </Link>
+              <Link to="/settings"><SlidersHorizontal className="text-muted-foreground hover:text-primary cursor-pointer" /></Link>
             </TooltipTrigger>
             <TooltipContent>全局配置</TooltipContent>
           </Tooltip>
@@ -270,21 +338,16 @@ const SpacePage: FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* ── Left panel ── */}
         <aside className="flex w-72 shrink-0 flex-col gap-3 overflow-auto border-r border-neutral-200 bg-white p-4">
-
-          {/* 空间链接 */}
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">UP主空间链接</label>
             <textarea
-              rows={3}
-              placeholder="https://space.bilibili.com/123456/video"
+              rows={3} placeholder="https://space.bilibili.com/123456/video"
               className="w-full resize-none rounded border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-primary"
-              value={spaceUrl}
-              onChange={e => setSpaceUrl(e.target.value)}
+              value={spaceUrl} onChange={e => setSpaceUrl(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleFetch() } }}
             />
           </div>
 
-          {/* 最多获取数 */}
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">最多获取视频数</label>
             <input
@@ -294,13 +357,7 @@ const SpacePage: FC = () => {
             />
           </div>
 
-          <Button onClick={handleFetch} disabled={loading} className="w-full">
-            {loading
-              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />获取中…</>
-              : <><Search className="mr-2 h-4 w-4" />获取视频列表</>}
-          </Button>
-
-          {/* ── 过滤条件折叠面板 ── */}
+          {/* 过滤条件折叠面板 */}
           <div className="rounded border border-neutral-200">
             <button
               className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
@@ -313,84 +370,56 @@ const SpacePage: FC = () => {
                   <span className="bg-primary rounded px-1 py-0.5 text-[10px] font-normal text-white">已启用</span>
                 )}
               </span>
-              {showFilter
-                ? <ChevronUp className="h-3.5 w-3.5 text-neutral-400" />
-                : <ChevronDown className="h-3.5 w-3.5 text-neutral-400" />}
+              {showFilter ? <ChevronUp className="h-3.5 w-3.5 text-neutral-400" /> : <ChevronDown className="h-3.5 w-3.5 text-neutral-400" />}
             </button>
 
             {showFilter && (
               <div className="space-y-3 border-t border-neutral-100 p-3">
+                <p className="text-[10px] text-neutral-400">过滤条件在获取时生效，结果仅包含匹配视频</p>
 
-                {/* 关键词过滤 */}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-neutral-600">
-                    标题关键词
-                    <span className="ml-1 font-normal text-neutral-400">（分号分隔，满足任意一个即保留）</span>
+                    标题关键词 <span className="font-normal text-neutral-400">分号分隔，满足任意一个即保留</span>
                   </label>
                   <input
-                    type="text"
-                    placeholder="教程;vscode;入门"
-                    value={filterKeywords}
-                    onChange={e => setFilterKeywords(e.target.value)}
+                    type="text" placeholder="教程;vscode;入门"
+                    value={filterKeywords} onChange={e => setFilterKeywords(e.target.value)}
                     className="w-full rounded border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                 </div>
 
-                {/* 日期范围 */}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-neutral-600">
-                    发布日期范围
-                    <span className="ml-1 font-normal text-neutral-400">（不选则不限）</span>
+                    发布日期范围 <span className="font-normal text-neutral-400">不选则不限</span>
                   </label>
                   <div className="flex items-center gap-1">
-                    <input
-                      type="date"
-                      value={filterDateFrom}
-                      onChange={e => setFilterDateFrom(e.target.value)}
-                      className="flex-1 rounded border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-primary"
-                    />
+                    <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
+                      className="flex-1 rounded border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-primary" />
                     <span className="text-xs text-neutral-400">至</span>
-                    <input
-                      type="date"
-                      value={filterDateTo}
-                      onChange={e => setFilterDateTo(e.target.value)}
-                      className="flex-1 rounded border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-primary"
-                    />
+                    <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
+                      className="flex-1 rounded border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-primary" />
                   </div>
                 </div>
 
-                {/* 排除链接 */}
                 <div>
                   <div className="mb-1 flex items-center justify-between">
                     <label className="text-xs font-medium text-neutral-600">
-                      排除链接
-                      <span className="ml-1 font-normal text-neutral-400">（每行一个 URL 或 BV 号）</span>
+                      排除链接 <span className="font-normal text-neutral-400">每行一个 URL 或 BV 号</span>
                     </label>
-                    <button
-                      onClick={handleFillExcludeFromHistory}
-                      className="text-primary text-[10px] hover:underline"
-                    >
+                    <button onClick={handleFillExcludeFromHistory} className="text-primary text-[10px] hover:underline">
                       填入已生成历史
                     </button>
                   </div>
                   <textarea
-                    rows={4}
-                    placeholder={'https://www.bilibili.com/video/BV1xx\nBV1yy\n...'}
-                    value={filterExcludeUrls}
-                    onChange={e => setFilterExcludeUrls(e.target.value)}
+                    rows={4} placeholder={'https://www.bilibili.com/video/BV1xx\nBV1yy'}
+                    value={filterExcludeUrls} onChange={e => setFilterExcludeUrls(e.target.value)}
                     className="w-full resize-y rounded border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                 </div>
 
-                {/* 清空过滤 */}
                 {hasActiveFilter && (
                   <button
-                    onClick={() => {
-                      setFilterKeywords('')
-                      setFilterDateFrom('')
-                      setFilterDateTo('')
-                      setFilterExcludeUrls('')
-                    }}
+                    onClick={() => { setFilterKeywords(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterExcludeUrls('') }}
                     className="w-full rounded border border-neutral-200 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
                   >
                     清空所有过滤条件
@@ -400,42 +429,37 @@ const SpacePage: FC = () => {
             )}
           </div>
 
-          {/* 历史记录入口 */}
-          <Button
-            variant="outline" size="sm"
-            className="w-full text-xs"
-            onClick={() => setShowHistory(v => !v)}
-            disabled={history.length === 0}
-          >
+          <Button onClick={handleFetch} disabled={loading} className="w-full">
+            {loading
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />获取中…</>
+              : <><Search className="mr-2 h-4 w-4" />获取视频列表</>}
+          </Button>
+
+          <Button variant="outline" size="sm" className="w-full text-xs"
+            onClick={() => setShowHistory(v => !v)} disabled={history.length === 0}>
             <History className="mr-1.5 h-3.5 w-3.5" />
             历史记录 {history.length > 0 && `(${history.length})`}
           </Button>
 
           {videos.length > 0 && (
             <p className="text-center text-xs text-neutral-400">
-              UID: {uid} · 共 {total} 个
-              {hasActiveFilter && filteredVideos.length !== total && (
-                <span className="text-primary ml-1">过滤后 {filteredVideos.length} 个</span>
-              )}
+              UID: {uid} · {videos.length} 条结果
             </p>
           )}
 
-          {/* 操作按钮 */}
           {videos.length > 0 && (
             <div className="mt-auto flex flex-col gap-2 border-t border-neutral-100 pt-3">
               <Button variant="outline" size="sm" onClick={handleCopyLinks} disabled={selectedIds.size === 0}>
-                <Download className="mr-2 h-4 w-4" />
-                复制链接 ({selectedIds.size})
+                <Download className="mr-2 h-4 w-4" />复制链接 ({selectedIds.size})
               </Button>
-              <Button size="sm" onClick={handleGenerateNotes} disabled={selectedIds.size === 0}>
-                <Play className="mr-2 h-4 w-4" />
-                批量生成笔记 ({selectedIds.size})
+              <Button size="sm" onClick={handleOpenBatchConfig} disabled={selectedIds.size === 0}>
+                <Play className="mr-2 h-4 w-4" />批量生成笔记 ({selectedIds.size})
               </Button>
             </div>
           )}
         </aside>
 
-        {/* ── History drawer ── */}
+        {/* History drawer */}
         {showHistory && (
           <div className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-white">
             <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-2">
@@ -444,31 +468,39 @@ const SpacePage: FC = () => {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-auto">
               <div className="divide-y divide-neutral-100">
                 {history.map(record => (
-                  <div
-                    key={record.id}
-                    className="group flex cursor-pointer items-center gap-2 px-3 py-2.5 hover:bg-neutral-50"
-                    onClick={() => handleLoadHistory(record)}
-                  >
+                  <div key={record.id}
+                    className="group flex cursor-pointer items-start gap-2 px-3 py-2.5 hover:bg-neutral-50"
+                    onClick={() => handleLoadHistory(record)}>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-medium text-neutral-700">UID {record.uid}</p>
                       <p className="text-[10px] text-neutral-400">
-                        {record.total} 个视频 · {record.fetchedAt.slice(0, 10)}
+                        {record.total} 条 · {record.fetchedAt.slice(0, 10)}
                       </p>
+                      {/* 过滤条件摘要 */}
+                      {(record.filters.keywords || record.filters.dateFrom || record.filters.dateTo) && (
+                        <p className="mt-0.5 truncate text-[10px] text-neutral-300">
+                          {[
+                            record.filters.keywords && `词: ${record.filters.keywords}`,
+                            (record.filters.dateFrom || record.filters.dateTo) &&
+                              `日期: ${record.filters.dateFrom || '∞'} ~ ${record.filters.dateTo || '∞'}`,
+                          ].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-neutral-300 group-hover:text-neutral-500" />
+                    <ChevronRight className="mt-1 h-3.5 w-3.5 shrink-0 text-neutral-300 group-hover:text-neutral-500" />
                     <button
                       onClick={e => { e.stopPropagation(); removeHistory(record.id) }}
-                      className="shrink-0 text-neutral-300 opacity-0 hover:text-red-400 group-hover:opacity-100"
+                      className="mt-0.5 shrink-0 text-neutral-300 opacity-0 hover:text-red-400 group-hover:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         )}
 
@@ -479,87 +511,67 @@ const SpacePage: FC = () => {
               <div className="text-center text-neutral-400">
                 <ListChecks className="mx-auto mb-3 h-12 w-12 opacity-30" />
                 <p className="text-sm">输入UP主空间链接，点击「获取视频列表」</p>
-                {history.length > 0 && (
-                  <p className="mt-1 text-xs">或点击「历史记录」加载上次结果</p>
-                )}
+                {history.length > 0 && <p className="mt-1 text-xs">或点击「历史记录」加载上次结果</p>}
               </div>
             </div>
           ) : (
             <>
               {/* Toolbar */}
-              <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2">
-                <div className="flex cursor-pointer items-center gap-1.5 text-sm" onClick={toggleSelectAll}>
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleSelectAll}
-                    onClick={e => e.stopPropagation()}
-                  />
-                  <span>{allSelected ? '取消全选' : '全选'}</span>
-                  {selectedIds.size > 0 && (
-                    <span className="text-primary ml-1 font-medium">已选 {selectedIds.size}</span>
-                  )}
+              <div className="flex shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-4 py-2">
+                {/* 当页全选 */}
+                <div className="flex cursor-pointer items-center gap-1.5 text-sm" onClick={toggleSelectPage}>
+                  <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectPage} onClick={e => e.stopPropagation()} />
+                  <span className="text-xs">本页</span>
                 </div>
+                {/* 全部全选 */}
+                {displayVideos.length > PAGE_SIZE && (
+                  <button onClick={toggleSelectAll}
+                    className={cn('rounded px-2 py-0.5 text-xs', allSelected ? 'text-primary' : 'text-neutral-500 hover:text-neutral-700')}>
+                    {allSelected ? '取消全选' : `全选全部(${displayVideos.length})`}
+                  </button>
+                )}
+                {selectedIds.size > 0 && (
+                  <span className="text-primary text-xs font-medium">已选 {selectedIds.size}</span>
+                )}
+
                 <div className="ml-auto flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-                    <input
-                      type="text"
-                      placeholder="搜索标题…"
-                      className="w-44 rounded border border-neutral-300 py-1 pr-7 pl-7 text-sm outline-none focus:border-primary"
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                    />
+                    <input type="text" placeholder="标题二次搜索…"
+                      className="w-40 rounded border border-neutral-300 py-1 pr-6 pl-7 text-xs outline-none focus:border-primary"
+                      value={search} onChange={e => setSearch(e.target.value)} />
                     {search && (
-                      <button
-                        onClick={() => setSearch('')}
-                        className="absolute top-1/2 right-2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                      >
-                        <X className="h-3.5 w-3.5" />
+                      <button onClick={() => setSearch('')}
+                        className="absolute top-1/2 right-1.5 -translate-y-1/2 text-neutral-400 hover:text-neutral-600">
+                        <X className="h-3 w-3" />
                       </button>
                     )}
                   </div>
-                  <span className="text-xs text-neutral-400">
-                    {filteredVideos.length} / {videos.length}
-                    {hasActiveFilter && filteredVideos.length !== videos.length && (
-                      <span className="text-primary ml-1">已过滤</span>
-                    )}
-                  </span>
+                  <span className="text-xs text-neutral-400">{displayVideos.length} 条</span>
                 </div>
               </div>
 
               {/* List */}
-              <ScrollArea className="flex-1">
-                {filteredVideos.length === 0 ? (
+              <div className="flex-1 overflow-auto bg-white">
+                {displayVideos.length === 0 ? (
                   <div className="flex h-40 items-center justify-center text-sm text-neutral-400">
-                    当前过滤条件下无匹配视频
+                    无匹配结果
                   </div>
                 ) : (
-                  <div className="divide-y divide-neutral-100 bg-white">
-                    {filteredVideos.map(video => {
+                  <div className="divide-y divide-neutral-100">
+                    {pagedVideos.map(video => {
                       const checked = selectedIds.has(video.bvid)
                       return (
-                        <div
-                          key={video.bvid}
-                          onClick={() => toggleSelect(video.bvid)}
+                        <div key={video.bvid} onClick={() => toggleSelect(video.bvid)}
                           className={cn(
                             'flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-neutral-50',
                             checked && 'bg-primary-light hover:bg-primary-light',
-                          )}
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={() => toggleSelect(video.bvid)}
-                            onClick={e => e.stopPropagation()}
-                            className="shrink-0"
-                          />
+                          )}>
+                          <Checkbox checked={checked} onCheckedChange={() => toggleSelect(video.bvid)}
+                            onClick={e => e.stopPropagation()} className="shrink-0" />
                           <img
-                            src={
-                              video.cover
-                                ? `${baseURL}/image_proxy?url=${encodeURIComponent(video.cover)}`
-                                : '/placeholder.png'
-                            }
-                            alt="封面"
-                            className="h-14 w-24 shrink-0 rounded object-cover"
+                            src={video.cover ? `${baseURL}/image_proxy?url=${encodeURIComponent(video.cover)}` : '/placeholder.png'}
+                            alt="封面" className="h-14 w-24 shrink-0 rounded object-cover"
                             onError={e => { (e.target as HTMLImageElement).src = '/placeholder.png' }}
                           />
                           <div className="flex flex-1 flex-col gap-1 overflow-hidden">
@@ -570,22 +582,15 @@ const SpacePage: FC = () => {
                                     {video.title || '未知标题'}
                                   </p>
                                 </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-sm">
-                                  {video.title}
-                                </TooltipContent>
+                                <TooltipContent side="top" className="max-w-sm">{video.title}</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                             <div className="flex items-center gap-3 text-xs text-neutral-400">
                               {video.duration_str && <span>{video.duration_str}</span>}
                               <span>播放 {formatViews(video.view_count)}</span>
                               <span>{formatTs(video.created)}</span>
-                              <a
-                                href={video.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-primary hover:underline"
-                              >
+                              <a href={video.url} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()} className="text-primary hover:underline">
                                 {video.bvid}
                               </a>
                             </div>
@@ -595,12 +600,177 @@ const SpacePage: FC = () => {
                     })}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
+
+              {/* Pagination */}
+              <Pagination page={page} total={displayVideos.length} pageSize={PAGE_SIZE} onChange={setPage} />
             </>
           )}
         </main>
       </div>
     </div>
+
+    {/* 批量生成配置弹窗 */}
+
+    <Dialog open={showBatchConfig} onOpenChange={setShowBatchConfig}>
+      <DialogContent className="w-[420px]">
+        <DialogHeader>
+          <DialogTitle>批量生成配置</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* 模型选择 */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">AI 模型</label>
+            <select
+              value={batchModel}
+              onChange={e => setBatchModel(e.target.value)}
+              className="w-full rounded border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-primary"
+            >
+              {modelList.map(m => (
+                <option key={m.model_name} value={m.model_name}>{m.model_name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 笔记风格 */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">笔记风格</label>
+            <div className="flex flex-wrap gap-2">
+              {noteStyles.map(s => (
+                <button
+                  key={s.value}
+                  onClick={() => setBatchStyle(s.value)}
+                  className={cn(
+                    'rounded border px-3 py-1 text-xs transition-colors',
+                    batchStyle === s.value
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-neutral-200 text-neutral-600 hover:border-primary hover:text-primary',
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 转录质量 */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">转录质量</label>
+            <div className="flex gap-2">
+              {[
+                { label: '快速', value: 'fast' },
+                { label: '标准', value: 'medium' },
+                { label: '高质量', value: 'slow' },
+              ].map(q => (
+                <button
+                  key={q.value}
+                  onClick={() => setBatchQuality(q.value)}
+                  className={cn(
+                    'flex-1 rounded border py-1.5 text-xs transition-colors',
+                    batchQuality === q.value
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-neutral-200 text-neutral-600 hover:border-primary hover:text-primary',
+                  )}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 视频理解 */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-sm font-medium text-neutral-700">视频理解</label>
+              <button
+                onClick={() => setBatchVideoUnderstanding(v => !v)}
+                className={cn(
+                  'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                  batchVideoUnderstanding ? 'bg-primary' : 'bg-neutral-300',
+                )}
+              >
+                <span className={cn(
+                  'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+                  batchVideoUnderstanding ? 'translate-x-4' : 'translate-x-1',
+                )} />
+              </button>
+            </div>
+            {batchVideoUnderstanding && (
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-neutral-500">采样间隔（秒）</label>
+                  <input
+                    type="number" min={1} max={30}
+                    value={batchVideoInterval}
+                    onChange={e => setBatchVideoInterval(Number(e.target.value))}
+                    className="w-full rounded border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-neutral-500">拼图尺寸（列×行）</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number" min={1} max={10}
+                      value={batchGridSize[0]}
+                      onChange={e => setBatchGridSize([Number(e.target.value), batchGridSize[1]])}
+                      className="w-full rounded border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-primary"
+                    />
+                    <span className="text-xs text-neutral-400">×</span>
+                    <input
+                      type="number" min={1} max={10}
+                      value={batchGridSize[1]}
+                      onChange={e => setBatchGridSize([batchGridSize[0], Number(e.target.value)])}
+                      className="w-full rounded border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="mt-1.5 text-[10px] text-neutral-400">启用后将截图发给多模态模型辅助分析，需使用多模态模型</p>
+          </div>
+
+          {/* 笔记格式（多选） */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              笔记格式 <span className="font-normal text-neutral-400 text-xs">可多选</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {noteFormats.map(f => {
+                const active = batchFormat.includes(f.value)
+                return (
+                  <button
+                    key={f.value}
+                    onClick={() =>
+                      setBatchFormat(prev =>
+                        active ? prev.filter(v => v !== f.value) : [...prev, f.value],
+                      )
+                    }
+                    className={cn(
+                      'rounded border px-3 py-1 text-xs transition-colors',
+                      active
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-neutral-200 text-neutral-600 hover:border-primary hover:text-primary',
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowBatchConfig(false)}>取消</Button>
+          <Button onClick={handleBatchSubmit}>
+            <Play className="mr-2 h-4 w-4" />
+            开始生成 ({selectedIds.size} 个)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 
