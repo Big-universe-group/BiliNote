@@ -126,8 +126,10 @@ export function MarkdownHeader({
         {createAt && (
           <div className="text-muted-foreground text-xs">创建: {formatDate(createAt)}</div>
         )}
-        {videoPublishDate && (
-          <div className="text-muted-foreground text-xs">发布: {videoPublishDate}</div>
+        {createAt && (
+          <div className="text-muted-foreground text-xs">
+            发布: {videoPublishDate || formatDate(createAt)}
+          </div>
         )}
       </div>
 

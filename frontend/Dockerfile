@@ -9,8 +9,9 @@ WORKDIR /app
 COPY ./frontend/package.json ./frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# 再复制源代码并构建,这里增加了内存限制，防止构建过程中内存溢出
+# 再复制源代码并构建
 COPY ./frontend/ ./
+ENV DOCKER_BUILD=1
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
 # === 阶段2：使用 nginx 作为静态服务器 ===

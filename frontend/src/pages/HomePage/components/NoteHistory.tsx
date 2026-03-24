@@ -1,7 +1,7 @@
 import { useTaskStore } from '@/store/taskStore'
 import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { cn } from '@/lib/utils.ts'
-import { Trash, Download, X, CheckSquare, Eraser, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Trash, Download, X, CheckSquare, Eraser, ArrowUp, ArrowDown, ArrowUpDown, Merge } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
 import Fuse from 'fuse.js'
@@ -21,6 +21,7 @@ import toast from 'react-hot-toast'
 interface NoteHistoryProps {
   onSelect: (taskId: string) => void
   selectedId: string | null
+  onMerge?: (content: string, count: number) => void
 }
 
 type SortKey = 'createdAt' | 'title' | 'publishDate'
@@ -44,7 +45,7 @@ const SORT_LABELS: Record<SortKey, string> = {
   publishDate: '发布时间',
 }
 
-const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
+const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId, onMerge }) => {
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
   const clearFailedTasks = useTaskStore(state => state.clearFailedTasks)
@@ -171,6 +172,29 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     setSelectedIds(new Set())
   }
 
+  const mergeableCount = [...selectedIds].filter(
+    id => tasks.find(t => t.id === id)?.status === 'SUCCESS'
+  ).length
+
+  const handleMerge = () => {
+    const toMerge = tasks.filter(t => selectedIds.has(t.id) && t.status === 'SUCCESS')
+    if (toMerge.length < 2) {
+      toast.error('请至少选择 2 篇已完成的笔记')
+      return
+    }
+    const combined = toMerge
+      .map(task => {
+        const title = task.audioMeta.title || '未命名笔记'
+        const content = getMarkdownContent(task)
+        return `## 📹 ${title}\n\n${content}`
+      })
+      .join('\n\n---\n\n')
+    const header = `# 合并笔记（${toMerge.length} 篇）\n\n> 合并于 ${new Date().toLocaleString('zh-CN')}\n\n---\n\n`
+    onMerge?.(header + combined, toMerge.length)
+    setSelectMode(false)
+    toast.success(`已合并 ${toMerge.length} 篇笔记`)
+  }
+
   const exportableCount = [...selectedIds].filter(
     id => tasks.find(t => t.id === id)?.status === 'SUCCESS'
   ).length
@@ -295,6 +319,16 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
               >
                 <Download className="mr-1 h-3 w-3" />
                 导出{exportableCount > 0 ? `(${exportableCount})` : ''}
+              </Button>
+              <Button
+                size="small"
+                variant="outline"
+                className="flex-1 text-xs text-blue-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                onClick={handleMerge}
+                disabled={mergeableCount < 2}
+              >
+                <Merge className="mr-1 h-3 w-3" />
+                合并{mergeableCount >= 2 ? `(${mergeableCount})` : ''}
               </Button>
               <Button
                 size="small"
