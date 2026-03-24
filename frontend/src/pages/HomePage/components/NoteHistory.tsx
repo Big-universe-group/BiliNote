@@ -176,6 +176,46 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId, onMerge }) =>
     id => tasks.find(t => t.id === id)?.status === 'SUCCESS'
   ).length
 
+  // 删除目录段落（标题含"目录"的整块内容，直到下一个同级或更高级标题）
+  const removeTOC = (content: string): string => {
+    const lines = content.split('\n')
+    const result: string[] = []
+    let inTOC = false
+    let tocLevel = 0
+
+    for (const line of lines) {
+      const tocHeading = line.match(/^(#{1,6})\s*(📋\s*)?目录\s*$/)
+      if (tocHeading) {
+        inTOC = true
+        tocLevel = tocHeading[1].length
+        continue
+      }
+      if (inTOC) {
+        const nextHeading = line.match(/^(#{1,6})\s/)
+        if (nextHeading && nextHeading[1].length <= tocLevel) {
+          inTOC = false
+        } else {
+          continue
+        }
+      }
+      result.push(line)
+    }
+    return result.join('\n')
+  }
+
+  // 将所有标题降一级（# → ##，最多到 ######），代码块内不处理
+  const shiftHeadings = (content: string): string => {
+    let inCodeBlock = false
+    return content
+      .split('\n')
+      .map(line => {
+        if (line.match(/^```/)) inCodeBlock = !inCodeBlock
+        if (inCodeBlock) return line
+        return line.replace(/^(#{1,5})(\s)/, (_, hashes, space) => hashes + '#' + space)
+      })
+      .join('\n')
+  }
+
   const handleMerge = () => {
     const toMerge = tasks.filter(t => selectedIds.has(t.id) && t.status === 'SUCCESS')
     if (toMerge.length < 2) {
@@ -185,8 +225,9 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId, onMerge }) =>
     const combined = toMerge
       .map(task => {
         const title = task.audioMeta.title || '未命名笔记'
-        const content = getMarkdownContent(task)
-        return `## 📹 ${title}\n\n${content}`
+        const raw = getMarkdownContent(task)
+        const processed = shiftHeadings(removeTOC(raw))
+        return `## 📹 ${title}\n\n${processed}`
       })
       .join('\n\n---\n\n')
     const header = `# 合并笔记（${toMerge.length} 篇）\n\n> 合并于 ${new Date().toLocaleString('zh-CN')}\n\n---\n\n`
