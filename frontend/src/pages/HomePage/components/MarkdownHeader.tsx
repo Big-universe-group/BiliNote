@@ -27,6 +27,7 @@ interface NoteHeaderProps {
   onCopy: () => void
   onDownload: () => void
   createAt?: string | Date
+  videoPublishDate?: string
   setShowTranscribe: (show: boolean) => void
   showChat?: false | 'half' | 'full'
   setShowChat?: (mode: false | 'half' | 'full') => void
@@ -43,6 +44,7 @@ export function MarkdownHeader({
   onCopy,
   onDownload,
   createAt,
+  videoPublishDate,
   showTranscribe,
   setShowTranscribe,
   showChat,
@@ -122,12 +124,15 @@ export function MarkdownHeader({
         </Badge>
 
         {createAt && (
-          <div className="text-muted-foreground text-sm">创建时间: {formatDate(createAt)}</div>
+          <div className="text-muted-foreground text-xs">创建: {formatDate(createAt)}</div>
+        )}
+        {videoPublishDate && (
+          <div className="text-muted-foreground text-xs">发布: {videoPublishDate}</div>
         )}
       </div>
 
       {/* 右侧操作按钮 */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -137,10 +142,10 @@ export function MarkdownHeader({
                 }}
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2"
+                className="h-7 px-1.5"
               >
-                <BrainCircuit className="mr-1.5 h-4 w-4" />
-                <span className="text-sm">{viewMode == 'preview' ? '思维导图' : 'markdown'}</span>
+                <BrainCircuit className="mr-1 h-3.5 w-3.5" />
+                <span className="text-xs">{viewMode == 'preview' ? '思维导图' : 'markdown'}</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>思维导图</TooltipContent>
@@ -149,9 +154,9 @@ export function MarkdownHeader({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleCopy} variant="ghost" size="sm" className="h-8 px-2">
-                <Copy className="mr-1.5 h-4 w-4" />
-                <span className="text-sm">{copied ? '已复制' : '复制'}</span>
+              <Button onClick={handleCopy} variant="ghost" size="sm" className="h-7 px-1.5">
+                <Copy className="mr-1 h-3.5 w-3.5" />
+                <span className="text-xs">{copied ? '已复制' : '复制'}</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>复制内容</TooltipContent>
@@ -161,9 +166,9 @@ export function MarkdownHeader({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={onDownload} variant="ghost" size="sm" className="h-8 px-2">
-                <Download className="mr-1.5 h-4 w-4" />
-                <span className="text-sm">导出 Markdown</span>
+              <Button onClick={onDownload} variant="ghost" size="sm" className="h-7 px-1.5">
+                <Download className="mr-1 h-3.5 w-3.5" />
+                <span className="text-xs">导出 MD</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>下载为 Markdown 文件</TooltipContent>
@@ -178,10 +183,9 @@ export function MarkdownHeader({
                 }}
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2"
+                className="h-7 px-1.5"
               >
-                {/*<Download className="mr-1.5 h-4 w-4" />*/}
-                <span className="text-sm">原文参照</span>
+                <span className="text-xs">原文参照</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>原文参照</TooltipContent>
@@ -195,10 +199,10 @@ export function MarkdownHeader({
                   onClick={() => setShowChat(showChat ? false : 'half')}
                   variant={showChat ? 'default' : 'ghost'}
                   size="sm"
-                  className="h-8 px-2"
+                  className="h-7 px-1.5"
                 >
-                  <MessageSquare className="mr-1.5 h-4 w-4" />
-                  <span className="text-sm">AI 问答</span>
+                  <MessageSquare className="mr-1 h-3.5 w-3.5" />
+                  <span className="text-xs">AI 问答</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>基于笔记内容的 AI 问答</TooltipContent>

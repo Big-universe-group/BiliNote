@@ -423,6 +423,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
         onCopy={handleCopy}
         onDownload={handleDownload}
         createAt={createTime}
+        videoPublishDate={currentTask?.audioMeta?.video_publish_date}
         showTranscribe={showTranscribe}
         setShowTranscribe={setShowTranscribe}
         showChat={showChat}
