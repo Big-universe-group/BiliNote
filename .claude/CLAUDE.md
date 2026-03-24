@@ -29,7 +29,7 @@ python main.py          # 启动在 0.0.0.0:8483
 
 ### 前端（React 19 + Vite + TypeScript）
 ```bash
-cd BillNote_frontend    # 注意：目录名是 BillNote 不是 BiliNote
+cd frontend    # 注意：目录名是 BillNote 不是 BiliNote
 pnpm install
 pnpm dev                # 开发服务器 port 3015，/api 代理到后端
 pnpm build
@@ -63,7 +63,7 @@ docker-compose -f docker-compose.gpu.yml up   # GPU 版本
 | `app/utils/response.py` | `ResponseWrapper` — 所有接口统一返回格式 |
 | `events/` | Blinker 信号系统，用于转录后清理临时文件等后处理 |
 
-### 前端 `BillNote_frontend/src/`
+### 前端 `frontend/src/`
 | 路径 | 职责 |
 |------|------|
 | `pages/HomePage/` | 主页：`NoteForm.tsx`（输入）、`MarkdownViewer.tsx`（预览）、`MarkmapComponent.tsx`（思维导图） |

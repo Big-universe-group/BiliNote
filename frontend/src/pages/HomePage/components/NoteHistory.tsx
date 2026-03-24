@@ -1,7 +1,7 @@
 import { useTaskStore } from '@/store/taskStore'
 import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { cn } from '@/lib/utils.ts'
-import { Trash, Download, X, CheckSquare, Eraser } from 'lucide-react'
+import { Trash, Download, X, CheckSquare, Eraser, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
 import Fuse from 'fuse.js'
@@ -23,6 +23,9 @@ interface NoteHistoryProps {
   selectedId: string | null
 }
 
+type SortKey = 'createdAt' | 'title' | 'publishDate'
+type SortOrder = 'asc' | 'desc'
+
 function getMarkdownContent(task: Task): string {
   const md = task.markdown
   if (!md) return ''
@@ -35,6 +38,12 @@ function safeFilename(title: string): string {
   return (title || '未命名笔记').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80)
 }
 
+const SORT_LABELS: Record<SortKey, string> = {
+  createdAt: '生成时间',
+  title: '标题',
+  publishDate: '发布时间',
+}
+
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
@@ -45,6 +54,8 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const [search, setSearch] = useState('')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   const fuse = useMemo(() => new Fuse(tasks, {
     keys: ['audioMeta.title'],
@@ -67,11 +78,44 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     ? fuse.search(search).map(r => r.item)
     : tasks
 
+  const sortedTasks = useMemo(() => {
+    const list = [...filteredTasks]
+    list.sort((a, b) => {
+      if (sortKey === 'title') {
+        const aTitle = a.audioMeta.title || ''
+        const bTitle = b.audioMeta.title || ''
+        const cmp = aTitle.localeCompare(bTitle, 'zh')
+        return sortOrder === 'asc' ? cmp : -cmp
+      }
+      let aDate: string, bDate: string
+      if (sortKey === 'publishDate') {
+        // 无发布时间时降级为生成时间
+        aDate = a.audioMeta.video_publish_date || a.createdAt
+        bDate = b.audioMeta.video_publish_date || b.createdAt
+      } else {
+        aDate = a.createdAt
+        bDate = b.createdAt
+      }
+      const diff = new Date(aDate).getTime() - new Date(bDate).getTime()
+      return sortOrder === 'asc' ? diff : -diff
+    })
+    return list
+  }, [filteredTasks, sortKey, sortOrder])
+
+  const handleSortClick = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortOrder('desc')
+    }
+  }
+
   const allSelected =
-    filteredTasks.length > 0 && filteredTasks.every(t => selectedIds.has(t.id))
+    sortedTasks.length > 0 && sortedTasks.every(t => selectedIds.has(t.id))
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(filteredTasks.map(t => t.id)))
+    setSelectedIds(allSelected ? new Set() : new Set(sortedTasks.map(t => t.id)))
   }
 
   const toggleSelect = (id: string) => {
@@ -139,20 +183,53 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     toast.success(`已清理 ${failedCount} 条失败记录`)
   }
 
+  const SortIcon = sortOrder === 'asc' ? ArrowUp : ArrowDown
+
   return (
     <>
       {/* 搜索框 + 工具栏 */}
       <div className="mb-2 space-y-2">
-        <input
-          type="text"
-          placeholder="搜索笔记标题..."
-          className="w-full rounded border border-neutral-300 px-3 py-1 text-sm outline-none focus:border-primary"
-          value={rawSearch}
-          onChange={e => {
-            setRawSearch(e.target.value)
-            if (e.target.value === '') setSearch('')
-          }}
-        />
+        {/* 搜索框 + 总数 */}
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="搜索笔记标题..."
+            className="flex-1 rounded border border-neutral-300 px-3 py-1 text-sm outline-none focus:border-primary"
+            value={rawSearch}
+            onChange={e => {
+              setRawSearch(e.target.value)
+              if (e.target.value === '') setSearch('')
+            }}
+          />
+          <span className="shrink-0 text-[11px] text-neutral-400">
+            {search.trim()
+              ? `${sortedTasks.length}/${tasks.length}`
+              : `共 ${tasks.length} 条`}
+          </span>
+        </div>
+
+        {/* 排序栏 */}
+        <div className="flex items-center gap-1">
+          <ArrowUpDown className="h-3 w-3 shrink-0 text-neutral-400" />
+          {(['createdAt', 'title', 'publishDate'] as SortKey[]).map(key => {
+            const isActive = sortKey === key
+            return (
+              <button
+                key={key}
+                onClick={() => handleSortClick(key)}
+                className={cn(
+                  'flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] transition-colors',
+                  isActive
+                    ? 'border-primary bg-primary-light text-primary'
+                    : 'border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-700'
+                )}
+              >
+                {SORT_LABELS[key]}
+                {isActive && <SortIcon className="h-2.5 w-2.5" />}
+              </button>
+            )
+          })}
+        </div>
 
         {!selectMode ? (
           /* 多选入口 + 清理失败 */
@@ -162,7 +239,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
               size="small"
               className="flex-1 text-xs"
               onClick={() => setSelectMode(true)}
-              disabled={filteredTasks.length === 0}
+              disabled={sortedTasks.length === 0}
             >
               <CheckSquare className="mr-1 h-3 w-3" />
               多选
@@ -234,13 +311,13 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
         )}
       </div>
 
-      {filteredTasks.length === 0 ? (
+      {sortedTasks.length === 0 ? (
         <div className="rounded-md border border-neutral-200 bg-neutral-50 py-6 text-center">
           <p className="text-sm text-neutral-500">暂无记录</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2 overflow-hidden">
-          {filteredTasks.map(task => {
+          {sortedTasks.map(task => {
             const isSuccess = task.status === 'SUCCESS'
             const isChecked = selectedIds.has(task.id)
 

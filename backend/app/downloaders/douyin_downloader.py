@@ -247,6 +247,13 @@ class DouyinDownloader(Downloader):
                 if tag["tag_name"]:
                     tags.append(tag["tag_name"])
 
+            create_time = video_data["aweme_detail"].get("create_time")
+            if create_time:
+                from datetime import datetime, timezone
+                video_publish_date = datetime.fromtimestamp(create_time, tz=timezone.utc).strftime("%Y-%m-%d")
+            else:
+                video_publish_date = None
+
             return AudioDownloadResult(
                 file_path=output_path,
                 title=video_data["aweme_detail"]["item_title"],
@@ -261,7 +268,8 @@ class DouyinDownloader(Downloader):
                 raw_info={
                     "tags": video_data["aweme_detail"]["caption"] + "".join(tags),
                 },
-                video_path=None,  # ❗音频下载不包含视频路径
+                video_path=None,
+                video_publish_date=video_publish_date,
             )
         except Exception as e:
             raise e

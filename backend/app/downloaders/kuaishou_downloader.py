@@ -38,6 +38,14 @@ class KuaiShouDownloader(Downloader, ABC):
         mp4_path = os.path.join(output_dir, f"{video_id}.mp4")
         mp3_path = os.path.join(output_dir, f"{video_id}.mp3")
 
+        # 快手 photo.timestamp 单位为毫秒
+        ts_ms = photo_info.get("timestamp")
+        if ts_ms:
+            from datetime import datetime, timezone
+            video_publish_date = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        else:
+            video_publish_date = None
+
         if os.path.exists(mp3_path):
             print(f"[已存在] 跳过下载: {mp3_path}")
             return AudioDownloadResult(
@@ -55,6 +63,7 @@ class KuaiShouDownloader(Downloader, ABC):
                     )
                 },
                 video_path=mp4_path,
+                video_publish_date=video_publish_date,
             )
 
         # 下载 mp4 视频
@@ -101,6 +110,7 @@ class KuaiShouDownloader(Downloader, ABC):
                 )
             },
             video_path=mp4_path,
+            video_publish_date=video_publish_date,
         )
 
     def download_video(

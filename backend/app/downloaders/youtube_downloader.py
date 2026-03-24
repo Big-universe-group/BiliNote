@@ -54,6 +54,12 @@ class YoutubeDownloader(Downloader, ABC):
             cover_url = info.get("thumbnail")
             ext = info.get("ext", "m4a")
             audio_path = os.path.join(output_dir, f"{video_id}.{ext}")
+            upload_date = info.get("upload_date")  # yt-dlp 返回 "YYYYMMDD"
+            video_publish_date = (
+                f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:]}"
+                if upload_date and len(upload_date) == 8
+                else None
+            )
 
         return AudioDownloadResult(
             file_path=audio_path,
@@ -63,7 +69,8 @@ class YoutubeDownloader(Downloader, ABC):
             platform="youtube",
             video_id=video_id,
             raw_info={"tags": info.get("tags")},  # 全部返回会报错
-            video_path=None,  # 音频下载不包含视频路径
+            video_path=None,
+            video_publish_date=video_publish_date,
         )
 
     def download_video(

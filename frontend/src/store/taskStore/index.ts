@@ -15,6 +15,7 @@ export interface AudioMeta {
   raw_info: any
   title: string
   video_id: string
+  video_publish_date?: string  // 原视频发布日期，ISO 格式 "2023-01-15"
 }
 
 export interface Segment {

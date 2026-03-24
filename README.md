@@ -120,7 +120,7 @@ python main.py
 #### 3. 启动前端（Vite + React）
 
 ```bash
-cd BillNote_frontend
+cd frontend
 pnpm install
 pnpm dev
 ```

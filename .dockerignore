@@ -6,8 +6,8 @@
 .DS_Store
 
 # Tauri 构建产物（非常大）
-BillNote_frontend/src-tauri/target
-BillNote_frontend/src-tauri/bin
+frontend/src-tauri/target
+frontend/src-tauri/bin
 
 # 运行时数据
 backend/data
