@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import toast from 'react-hot-toast'
 
 
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILD'
+export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED'
 
 export interface AudioMeta {
   cover_url: string
@@ -62,6 +62,7 @@ interface TaskStore {
   updateTaskContent: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt'>>) => void
   removeTask: (id: string) => void
   clearTasks: () => void
+  clearFailedTasks: () => Promise<void>
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
   retryTask: (id: string) => void
@@ -207,6 +208,20 @@ export const useTaskStore = create<TaskStore>()(
       },
 
       clearTasks: () => set({ tasks: [], currentTaskId: null }),
+
+      clearFailedTasks: async () => {
+        const failedTasks = get().tasks.filter(t => t.status === 'FAILED')
+        set(state => ({
+          tasks: state.tasks.filter(t => t.status !== 'FAILED'),
+          currentTaskId: failedTasks.some(t => t.id === state.currentTaskId) ? null : state.currentTaskId,
+        }))
+        for (const task of failedTasks) {
+          await delete_task({
+            video_id: task.audioMeta?.video_id || '',
+            platform: (task as any).platform || task.formData?.platform || '',
+          })
+        }
+      },
 
       setCurrentTask: taskId => set({ currentTaskId: taskId }),
 

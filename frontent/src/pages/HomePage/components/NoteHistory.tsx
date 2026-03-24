@@ -1,7 +1,7 @@
 import { useTaskStore } from '@/store/taskStore'
 import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { cn } from '@/lib/utils.ts'
-import { Trash, Download, X, CheckSquare } from 'lucide-react'
+import { Trash, Download, X, CheckSquare, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
 import Fuse from 'fuse.js'
@@ -38,6 +38,7 @@ function safeFilename(title: string): string {
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
+  const clearFailedTasks = useTaskStore(state => state.clearFailedTasks)
   const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
 
   const [rawSearch, setRawSearch] = useState('')
@@ -130,6 +131,14 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     id => tasks.find(t => t.id === id)?.status === 'SUCCESS'
   ).length
 
+  const failedCount = tasks.filter(t => t.status === 'FAILED').length
+
+  const handleClearFailed = async () => {
+    if (failedCount === 0) return
+    await clearFailedTasks()
+    toast.success(`已清理 ${failedCount} 条失败记录`)
+  }
+
   return (
     <>
       {/* 搜索框 + 工具栏 */}
@@ -146,17 +155,29 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
         />
 
         {!selectMode ? (
-          /* 多选入口 */
-          <Button
-            variant="outline"
-            size="small"
-            className="w-full text-xs"
-            onClick={() => setSelectMode(true)}
-            disabled={filteredTasks.length === 0}
-          >
-            <CheckSquare className="mr-1 h-3 w-3" />
-            多选
-          </Button>
+          /* 多选入口 + 清理失败 */
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="small"
+              className="flex-1 text-xs"
+              onClick={() => setSelectMode(true)}
+              disabled={filteredTasks.length === 0}
+            >
+              <CheckSquare className="mr-1 h-3 w-3" />
+              多选
+            </Button>
+            <Button
+              variant="outline"
+              size="small"
+              className="flex-1 text-xs text-orange-500 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600"
+              onClick={handleClearFailed}
+              disabled={failedCount === 0}
+            >
+              <Eraser className="mr-1 h-3 w-3" />
+              清理失败{failedCount > 0 ? `(${failedCount})` : ''}
+            </Button>
+          </div>
         ) : (
           /* 多选工具栏 */
           <div className="space-y-1">

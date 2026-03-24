@@ -146,6 +146,7 @@ const SpacePage: FC = () => {
   const [batchVideoUnderstanding, setBatchVideoUnderstanding] = useState(false)
   const [batchVideoInterval, setBatchVideoInterval] = useState(6)
   const [batchGridSize, setBatchGridSize] = useState<[number, number]>([2, 2])
+  const [batchSkipSuccess, setBatchSkipSuccess] = useState(true)
 
   useEffect(() => { loadEnabledModels() }, [])
 
@@ -279,11 +280,23 @@ const SpacePage: FC = () => {
 
     const duplicates: string[] = []
     const toSubmit = selected.filter(video => {
-      if (hasTaskForUrl(video.url)) { duplicates.push(video.title || video.bvid); return false }
+      const normalized = video.url.trim()
+      const existingTask = tasks.find(t => t.formData?.video_url?.trim() === normalized)
+      if (!existingTask) return true
+      // 始终跳过进行中的任务
+      if (existingTask.status === 'PENDING' || existingTask.status === 'RUNNING') {
+        duplicates.push(video.title || video.bvid)
+        return false
+      }
+      // 根据选项决定是否跳过已成功的任务
+      if (existingTask.status === 'SUCCESS' && batchSkipSuccess) {
+        duplicates.push(video.title || video.bvid)
+        return false
+      }
       return true
     })
-    if (duplicates.length > 0) toast(`已跳过 ${duplicates.length} 个重复视频`, { icon: '⚠️' })
-    if (!toSubmit.length) { toast('所选视频均已生成过', { icon: 'ℹ️' }); return }
+    if (duplicates.length > 0) toast(`已跳过 ${duplicates.length} 个视频`, { icon: '⚠️' })
+    if (!toSubmit.length) { toast('所选视频均已在处理中或已成功生成', { icon: 'ℹ️' }); return }
 
     setShowBatchConfig(false)
     let submitted = 0
@@ -758,6 +771,26 @@ const SpacePage: FC = () => {
                 )
               })}
             </div>
+          </div>
+
+          {/* 跳过已成功生成的视频 */}
+          <div className="flex items-center justify-between rounded border border-neutral-200 px-3 py-2">
+            <div>
+              <div className="text-sm font-medium text-neutral-700">跳过已成功生成的视频</div>
+              <div className="text-[10px] text-neutral-400">勾选后将自动跳过历史中已成功生成笔记的视频</div>
+            </div>
+            <button
+              onClick={() => setBatchSkipSuccess(v => !v)}
+              className={cn(
+                'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+                batchSkipSuccess ? 'bg-primary' : 'bg-neutral-300',
+              )}
+            >
+              <span className={cn(
+                'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+                batchSkipSuccess ? 'translate-x-4' : 'translate-x-1',
+              )} />
+            </button>
           </div>
         </div>
 
